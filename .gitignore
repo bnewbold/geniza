@@ -1,0 +1,26 @@
+target/
+**/*.rs.bk
+*.o
+*.a
+*.pyc
+#*#
+*~
+*.swp
+.*
+*.tmp
+*.old
+*.profile
+*.bkp
+*.bak
+[Tt]humbs.db
+*.DS_Store
+build/
+_build/
+src/build/
+*.log
+
+# Don't ignore dat/sleep files for this repo in particular
+!.dat
+
+# Don't ignore this file itself
+!.gitignore
