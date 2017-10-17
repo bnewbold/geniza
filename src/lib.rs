@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::fs::File;
 use integer_encoding::FixedInt;
+use std::fs::OpenOptions;
 
 mod errors {
     // Create the Error, ErrorKind, ResultExt, and Result types
@@ -33,6 +34,7 @@ pub struct SleepFile {
     file: File,
     magic: u32,
     entry_size: u16,
+    // Option isn't necessary here... idiomatic?
     algorithm_name: Option<String>,
 }
 
@@ -42,15 +44,18 @@ impl SleepFile {
 
     pub fn open(path: &Path, writable: bool) -> Result<SleepFile> {
 
-        // TODO: use writable here
-        let mut f = File::open(path)?;
+        let mut f = OpenOptions::new()
+            .read(true)
+            .write(writable)
+            .create(false)
+            .open(path)?;
         let mut header = [0; 32];
         f.read_exact(&mut header)?;
         let version: u8 = header[4];
         if version != 0 {
             return Err("Invalid SLEEP header: version must be 0".into());
         }
-        let algo_len: u8 = header[8];
+        let algo_len: u8 = header[7];
         if algo_len > 24 {
             return Err("Invalid SLEEP header: can't have algo_len > 24".into());
         }
@@ -60,18 +65,44 @@ impl SleepFile {
         // TODO: endian-ness of u16 entry_size
         Ok(SleepFile {
             file: f,
-            magic: FixedInt::decode_fixed(&header[0..4]),
-            entry_size: FixedInt::decode_fixed(&header[6..8]),
+            magic: u32::from_be(FixedInt::decode_fixed(&header[0..4])),
+            entry_size: u16::from_be(FixedInt::decode_fixed(&header[5..7])),
             algorithm_name: algorithm_name,
         })
     }
-/*
-    pub fn create(path: Path, magic: u32, entry_size: u16, algo: &str) -> Result<SleepFile> {
-        let mut sf = SleepFile {
 
+    pub fn create(path: &Path, magic: u32, entry_size: u16, algo: Option<String>) -> Result<SleepFile> {
+        // This function will *not* allow overwriting an existing file.
+
+        let mut header = [0; 32];
+        u32::to_be(magic).encode_fixed(&mut header[0..4]);
+        header[4] = 0; // version
+        u16::to_be(entry_size).encode_fixed(&mut header[5..7]);
+        if let Some(name) = algo.clone() {
+            let name = name.as_bytes();
+            let algo_len = name.len();
+            if algo_len > 24 {
+                return Err("Algorithm name must be 24 bytes at most".into());
+            }
+            header[7] = algo_len as u8;
+            header[8..(8+algo_len)].clone_from_slice(name);
+        } else {
+            header[7] = 0;
         };
+
+        let mut f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(path)?;
+        f.write(&header)?;
+        Ok(SleepFile {
+            file: f,
+            magic: magic,
+            entry_size: entry_size,
+            algorithm_name: algo,
+        })
     }
-*/
 }
 
 impl SleepStorage for SleepFile {
