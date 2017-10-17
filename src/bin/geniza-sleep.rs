@@ -37,7 +37,7 @@ fn run() -> Result<()> {
             println!("Magic: 0x{:X}", sf.get_magic());
             println!("Algorithm: '{}'", sf.get_algorithm().or(Some("".to_string())).unwrap());
             println!("Entry Size (bytes): {}", sf.get_entry_size());
-            println!("Entry count: {}", sf.length()?);
+            println!("Entry count: {}", sf.len()?);
         },
         ("create", Some(subm)) => {
             let path = Path::new(subm.value_of("FILE").unwrap());
@@ -57,7 +57,7 @@ fn run() -> Result<()> {
         ("read-all", Some(subm)) => {
             let path = Path::new(subm.value_of("FILE").unwrap());
             let mut sf = SleepFile::open(path, false)?;
-            for i in 0..sf.length()? {
+            for i in 0..sf.len()? {
                 println!("{}: {:?}", i, sf.read(i));
             }
         },
