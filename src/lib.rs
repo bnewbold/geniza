@@ -4,6 +4,7 @@ extern crate error_chain;
 extern crate integer_encoding;
 
 use std::io::prelude::*;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::fs::File;
 use integer_encoding::FixedInt;
@@ -24,8 +25,8 @@ pub trait SleepStorage {
     fn get_magic(&self) -> u32;
     fn get_algorithm(&self) -> Option<String>;
     fn get_entry_size(&self) -> u16;
-    fn read(&self, index: u64) -> Result<&[u8]>;
-    fn write(&self, index: u64, data: &[u8]) -> Result<()>;
+    fn read(&mut self, index: u64) -> Result<Vec<u8>>;
+    fn write(&mut self, index: u64, data: &[u8]) -> Result<()>;
     fn length(&self) -> Result<u64>;
 }
 
@@ -40,7 +41,7 @@ pub struct SleepFile {
 
 impl SleepFile {
 
-    // TODO: 'from' File trait
+    // TODO: 'from' pre-existing File
 
     pub fn open(path: &Path, writable: bool) -> Result<SleepFile> {
 
@@ -62,7 +63,6 @@ impl SleepFile {
         let algorithm_name = if algo_len == 0 { None } else {
             Some(String::from_utf8_lossy(&header[8..(8+(algo_len as usize))]).into_owned())
         };
-        // TODO: endian-ness of u16 entry_size
         Ok(SleepFile {
             file: f,
             magic: u32::from_be(FixedInt::decode_fixed(&header[0..4])),
@@ -95,7 +95,7 @@ impl SleepFile {
             .write(true)
             .create_new(true)
             .open(path)?;
-        f.write(&header)?;
+        f.write_all(&header)?;
         Ok(SleepFile {
             file: f,
             magic: magic,
@@ -111,20 +111,32 @@ impl SleepStorage for SleepFile {
     fn get_algorithm(&self) -> Option<String> { self.algorithm_name.clone() }
     fn get_entry_size(&self) -> u16 { self.entry_size }
 
-    fn read(&self, index: u64) -> Result<&[u8]> {
-        unimplemented!()
-        //Err("unimplemented")
+    fn read(&mut self, index: u64) -> Result<Vec<u8>> {
+        let entry_size = self.entry_size as usize;
+        if index + 1 > self.length()? {
+            return Err("Tried to read beyond end of SLEEP file".into());
+        }
+        let mut entry = vec![0; entry_size];
+        self.file.seek(SeekFrom::Start(32 + (entry_size as u64) * index))?;
+        self.file.read_exact(&mut entry)?;
+        Ok(entry)
     }
 
-    fn write(&self, index: u64, data: &[u8]) -> Result<()> {
+    fn write(&mut self, index: u64, data: &[u8]) -> Result<()> {
+        // TODO: need to extend file seek beyond end?
+        if data.len() != self.entry_size as usize {
+            return Err("Tried to write mis-sized data".into());
+        }
+        self.file.seek(SeekFrom::Start(32 + (self.entry_size as u64) * index))?;
+        self.file.write_all(&data)?;
         Ok(())
     }
 
     fn length(&self) -> Result<u64> {
         let length = self.file.metadata()?.len();
-        // TODO: assert that length >= 32
-        // TODO: assert that (length - 32) % self.entry_size == 0
+        if length < 32 || (length - 32) % (self.entry_size as u64) != 0 {
+            return Err("Bad SLEEP file: missing header or not multiple of entry_size".into());
+        }
         return Ok((length - 32) / (self.entry_size as u64))
     }
-
 }
