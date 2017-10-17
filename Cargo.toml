@@ -1,0 +1,11 @@
+[package]
+name = "geniza"
+version = "0.1.0"
+authors = ["Bryan Newbold <bnewbold@robocracy.org>"]
+
+[dependencies]
+rust-crypto = "^0.2"
+integer-encoding = "^1.0"
+clap = "2"
+error-chain = "0.7"
+env_logger = "0.3"
