@@ -23,6 +23,9 @@ fn run() -> Result<()> {
             .arg_from_usage("<magic> 'Magic word to use (eg, 0x5025700)'")
             .arg_from_usage("<entry_size> 'Size of each entry (bytes)'")
             .arg_from_usage("<algo_name> 'Name of algorithm (empty string for none)'"))
+        .subcommand(SubCommand::with_name("read-all")
+            .about("Reads a SLEEP file, iterates through all entries, prints raw bytes")
+            .arg_from_usage("<FILE> 'SLEEP file to read'"))
         .get_matches();
 
 
@@ -50,6 +53,13 @@ fn run() -> Result<()> {
                 value_t_or_exit!(subm, "entry_size", u16),
                 algo_name)?;
             println!("Done!");
+        },
+        ("read-all", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut sf = SleepFile::open(path, false)?;
+            for i in 0..sf.length()? {
+                println!("{}: {:?}", i, sf.read(i));
+            }
         },
         _ => {
             println!("Missing or unimplemented command!");
