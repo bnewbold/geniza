@@ -17,6 +17,10 @@ Fixed 32-bytes
     -----------------------------------------------------------------
 
 
+    MAGIC and ENTRY SIZE are both "big-endian", meaning that the "first" (aka
+    "most-significant" byte is in the "first" memory location (aka, "lowest
+    address").
+
     PREFIX LEN is max 24 (bytes)
 
     offset: 32 + entrySize * entryIndex
