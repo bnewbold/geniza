@@ -36,6 +36,6 @@ Fixed 32-bytes
     get_algorithm() -> &str
     read(index) -> &bytes[]
     write(index, &bytes[])
-    length() -> u64
+    len() -> u64
 
     First time around just do regular file seek() stuff
