@@ -296,22 +296,47 @@ impl HyperRegister {
         buf
     }
 
-    fn root_nodes(len: u64) -> Vec<u64> {
-        // Calculates the root notes for a given length
-        // Basically factorize by powers of 2?
-        unimplemented!()
+    fn root_nodes(data_count: u64) -> Vec<u64> {
+        // Calculates the root notes for a given length (of data entries, not tree entries)
+        // TODO: this should be an iterator
+        if data_count == 0 {
+            return vec![];
+        }
+
+        // Convert the count to a (descending) list of power-of-2 components
+        let mut x = 0;
+        let mut components = vec![];
+        while 2u64.pow(x) <= data_count {
+            if (data_count & 2u64.pow(x)) != 0 {
+                components.push(2u64.pow(x));
+            }
+            x += 1;
+        }
+        components.reverse();
+
+        // Add and accumulate
+        let mut accum = 0;
+        let mut roots = vec![];
+        for x in components {
+            roots.push(accum + (x - 1));
+            accum += 2*x;
+        }
+        roots
     }
 }
 
-/*
 #[test]
-root_index:
-    0 -> []
-    1 -> 1
-    2 -> 2
-    3 -> 
-    8 -> 7
-*/
+fn test_root_nodes() {
+    assert_eq!(HyperRegister::root_nodes(0), vec![]);
+    assert_eq!(HyperRegister::root_nodes(1), vec![0]);
+    assert_eq!(HyperRegister::root_nodes(2), vec![1]);
+    assert_eq!(HyperRegister::root_nodes(3), vec![1,4]);
+    assert_eq!(HyperRegister::root_nodes(4), vec![3]);
+    assert_eq!(HyperRegister::root_nodes(5), vec![3,8]);
+    assert_eq!(HyperRegister::root_nodes(6), vec![3,9]);
+    assert_eq!(HyperRegister::root_nodes(7), vec![3,9,12]);
+    assert_eq!(HyperRegister::root_nodes(8), vec![7]);
+}
 
 impl HyperRegister for SleepDirRegister {
 
