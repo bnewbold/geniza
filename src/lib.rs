@@ -1,4 +1,7 @@
 
+//! Is this where crate-level docs go?
+//! Yes.
+
 #[macro_use]
 extern crate error_chain;
 extern crate integer_encoding;
@@ -26,18 +29,36 @@ mod errors {
 pub use errors::*;
 
 
-// Abstract access to SLEEP content
+/// Abstract access to SLEEP content.
+/// Back-ends could be in RAM, on disk, remote HTTP, etc.
 pub trait SleepStorage {
+
+    /// Returns the 32-bit "magic word", indicating the content type, in native format (aka, not
+    /// necessarily big-endian).
     fn get_magic(&self) -> u32;
+
+    /// If the algorithm string is empty, returns None, otherwise the String (owned), decoded from
+    /// UTF-8. Encoded (bytes) representation is at most 24 bytes.
     fn get_algorithm(&self) -> Option<String>;
+
+    /// Size (in bytes) of each entry for this SLEEP file.
     fn get_entry_size(&self) -> u16;
+
+    /// Returns a single raw entry at the given index (which is not a byte offset).
+    /// TODO: should write into a supplied buffer and return size.
     fn read(&mut self, index: u64) -> Result<Vec<u8>>;
+
+    /// Writes an entry at the given entry index (which is not a byte offset).
     fn write(&mut self, index: u64, data: &[u8]) -> Result<()>;
+
+    /// Returns the count of entries, meaning the highest index entry plus one (not necessarily the
+    /// number of entries which have actually been written).
     fn len(&self) -> Result<u64>;
 }
 
 #[derive(Debug)]
 pub struct SleepFile {
+    /// Local File implementation of SleepStorage
     file: File,
     magic: u32,
     entry_size: u16,
