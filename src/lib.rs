@@ -1,6 +1,15 @@
 
-//! Is this where crate-level docs go?
-//! Yes.
+//! This is a hobby/learning implementation of the dat distributed data synchronization system.
+//!
+//! Subcomponents are roughly organized in library form for easier reading/review, but buyer-beware
+//! actually trying to reuse this code for anything other than education or interop testing.
+//!
+//! ### References
+//!
+//! [Dat Whitepaper](https://github.com/datproject/docs)
+//!
+//! Additional notes in the source code for this repo, under the 'notes' directory. Also, see
+//! README.
 
 #[macro_use]
 extern crate error_chain;
@@ -26,10 +35,13 @@ mod errors {
                         Io(::std::io::Error) #[cfg(unix)]; }
     }
 }
+
+#[doc(hidden)]
 pub use errors::*;
 
 
-/// Abstract access to SLEEP content.
+/// Abstract access to SLEEP content
+///
 /// Back-ends could be in RAM, on disk, remote HTTP, etc.
 pub trait SleepStorage {
 
@@ -56,9 +68,9 @@ pub trait SleepStorage {
     fn len(&self) -> Result<u64>;
 }
 
+/// Local File implementation of SleepStorage
 #[derive(Debug)]
 pub struct SleepFile {
-    /// Local File implementation of SleepStorage
     file: File,
     magic: u32,
     entry_size: u16,
@@ -173,20 +185,45 @@ impl SleepStorage for SleepFile {
 }
 
 
-// Abstract access to hypercore register
+/// Abstract access to Hypercore register
 pub trait HyperRegister {
+
+    /// Whether the register store contains the given (data) entry
     fn has(&self, index: u64) -> Result<bool>;
+
+    /// Whether the register store contains *all* known (data) entries
     fn has_all(&self) -> Result<bool>;
+
+    /// If the contiguous range of entries is in the store
     fn has_range(&self, start: u64, end: u64) -> Result<bool>;
-    fn get(&mut self, index: u64) -> Result<Vec<u8>>;
+
+    /// Reads a single data entry from the store.
+    fn get_data_entry(&mut self, index: u64) -> Result<Vec<u8>>;
+
+    /// Writes an entry to the store. Requires the private key to be present.
     fn append(&mut self, data: &[u8]) -> Result<u64>;
+
+    /// Count of data entries for this register. This is the total count (highest entry index plus
+    /// one); this particular store might be sparse.
     fn len(&self) -> Result<u64>;
+
+    /// Total size of this register in bytes.
     fn len_bytes(&self) -> Result<u64>;
+
+    /// [UNIMPLEMENTED] Intended to do a deeper merkel-tree verification of all stored data
     fn verify(&self) -> Result<()>;
+
+    /// Quick sanity checks on register store robust-ness
     fn check(&self) -> Result<()>;
+
+    /// Can this register be appended to?
     fn writable(&self) -> bool;
+
+    /// Returns a single tree entry (using tree indexing, not data indexing).
+    fn get_tree_entry(&mut self, index: u64) -> Result<Vec<u8>>;
 }
 
+/// Implementation of HyperRegister using a local directory of SLEEP files
 #[derive(Debug)]
 pub struct SleepDirRegister {
     tree_sleep: SleepFile,
