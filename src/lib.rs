@@ -28,6 +28,8 @@ use crypto::blake2b::Blake2b;
 use crypto::digest::Digest;
 use rand::Rng;
 
+#[allow(unused_doc_comment)]
+
 mod errors {
     // Create the Error, ErrorKind, ResultExt, and Result types
     error_chain! {
@@ -354,9 +356,37 @@ impl HyperRegister {
         buf
     }
 
+    pub fn hash_roots(reg: &mut HyperRegister, index: u64) -> Result<Vec<u8>> {
+        let mut buf = [0; 40];
+/*
+        // TODO: check overflow
+        let sum_size = u64::from_be(FixedInt::decode_fixed(&lhash[32..40])) +
+                       u64::from_be(FixedInt::decode_fixed(&rhash[32..40]));
+        u64::to_be(sum_size as u64)
+            .encode_fixed(&mut buf[32..40]);
+*/
+
+        let mut hash = Blake2b::new(32);
+        let mut index_buf = [0; 8];
+        // TODO: turn these single bytes into declared constants
+        hash.input(&[2; 1]);
+        for ri in HyperRegister::root_nodes(index) {
+            u64::to_be(ri).encode_fixed(&mut index_buf);
+            let node = reg.get_tree_entry(ri)?;
+            hash.input(&node[0..32]);
+            hash.input(&index_buf);
+            hash.input(&node[32..40]);
+        }
+        hash.result(&mut buf[0..32]);
+        Ok(buf.to_vec())
+
+    }
+
     fn root_nodes(data_count: u64) -> Vec<u64> {
         // Calculates the root notes for a given length (of data entries, not tree entries)
         // TODO: this should be an iterator
+        // NB: this is a relatively "hot" function, gets called (repeatedly?) on every mutation,
+        // and potentially in inner loops of lookups.
         if data_count == 0 {
             return vec![];
         }
@@ -380,6 +410,18 @@ impl HyperRegister {
             accum += 2*x;
         }
         roots
+    }
+
+    pub fn get_data_offset(reg: &mut HyperRegister, index: u64) -> Result<u64> {
+        // TODO: this is a naive (linear) implementation
+        // log(N) would go up previous parent nodes (eg, use root_nodes())
+        let mut sum: u64 = 0;
+        for i in 0..index {
+            let mut leaf = reg.get_tree_entry(i*2)?;
+            // TODO: overflow
+            sum += u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
+        }
+        Ok(sum)
     }
 }
 
@@ -408,6 +450,7 @@ impl HyperRegister for SleepDirRegister {
     }
 
     fn has_range(&self, start: u64, end: u64) -> Result<bool> {
+        // This function is un-motivated and could be removed
         assert!(end > start);
         for i in start..end {
             if !self.has(i)? {
@@ -417,23 +460,49 @@ impl HyperRegister for SleepDirRegister {
         Ok(true)
     }
 
-    fn get(&mut self, index: u64) -> Result<Vec<u8>> {
+    fn get_data_entry(&mut self, index: u64) -> Result<Vec<u8>> {
+
+        // Get metadata about chunk (offset and length)
+        let offset = HyperRegister::get_data_offset(self, index)?;
+
         // Do we even have this chunk?
         if !self.has(index)? {
             return Err("Don't have that chunk".into());
         }
-        // Get metadata about chunk (offset and length)
+
+        let mut data_file = if let Some(ref mut df) = self.data_file {
+            df
+        } else {
+            return Err("No data file in this register".into());
+        };
+        let mut leaf = self.tree_sleep.read(index*2)?;
+        let data_len = u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
+        // TODO: avoid foot-gun in development: cap at ~1 billion bytes
+        assert!(data_len < 2u64.pow(29));
+
         // Read chunk
-        unimplemented!()
+        let mut data = vec![0; data_len as usize];
+        data_file.seek(SeekFrom::Start(offset))?;
+        data_file.read_exact(&mut data)?;
+
+        // TODO: check the hash? separate function?
+        Ok(data)
+    }
+
+    fn get_tree_entry(&mut self, index: u64) -> Result<Vec<u8>> {
+        self.tree_sleep.read(index)
     }
 
     fn append(&mut self, data: &[u8]) -> Result<u64> {
+
+        let index = self.len()?;
+        let hash = HyperRegister::hash_roots(self, index+1)?;
+
         let mut data_file = if let Some(ref df) = self.data_file {
             df
         } else {
             return Err("No data file in this register".into());
         };
-        let index = self.len();
         // 1. Hash data chunk
         // 2. Append data to data file
         data_file.seek(SeekFrom::End(0))?;
@@ -472,13 +541,14 @@ impl HyperRegister for SleepDirRegister {
     }
 
     fn check(&self) -> Result<()> {
-        /* XXX:
         let sign_len = self.sign_sleep.len()?;
         let tree_len = self.tree_sleep.len()?;
-        if tree_len != sign_len * 2 {
-            return Err("Inconsistent SLEEP file sizes".into());
+        if (tree_len == 0) && (sign_len == 0) {
+            return Ok(())
         }
-        */
+        if tree_len != (sign_len * 2) - 1 {
+            return Err("Inconsistent SLEEP signature/tree file sizes".into());
+        }
         Ok(())
     }
 
