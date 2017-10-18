@@ -17,6 +17,9 @@ extern crate integer_encoding;
 extern crate crypto;
 extern crate rand;
 
+#[cfg(test)]
+extern crate tempdir;
+
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::path::Path;
@@ -64,6 +67,9 @@ pub trait SleepStorage {
 
     /// Writes an entry at the given entry index (which is not a byte offset).
     fn write(&mut self, index: u64, data: &[u8]) -> Result<()>;
+
+    /// Writes a new entry at the end of the file
+    fn append(&mut self, data: &[u8]) -> Result<()>;
 
     /// Returns the count of entries, meaning the highest index entry plus one (not necessarily the
     /// number of entries which have actually been written).
@@ -177,6 +183,11 @@ impl SleepStorage for SleepFile {
         Ok(())
     }
 
+    fn append(&mut self, data: &[u8]) -> Result<()> {
+        let index = self.len()?;
+        self.write(index, data)
+    }
+
     fn len(&self) -> Result<u64> {
         let length = self.file.metadata()?.len();
         if length < 32 || (length - 32) % (self.entry_size as u64) != 0 {
@@ -186,6 +197,47 @@ impl SleepStorage for SleepFile {
     }
 }
 
+#[test]
+fn test_sleep_open() {
+
+    let mut sf = SleepFile::open(
+       Path::new("test-data/sleep/empty/empty.sleep"), false).unwrap();
+
+    assert_eq!(sf.len().unwrap(), 0);
+    assert_eq!(sf.get_magic(), 0x050257FF);
+    assert_eq!(sf.get_algorithm(), None);
+    assert_eq!(sf.get_entry_size(), 1);
+
+    let mut sf = SleepFile::open(
+       Path::new("test-data/dat/simple/.dat/metadata.tree"), false).unwrap();
+
+    // Calculated from 'dat log'
+    assert_eq!(sf.len().unwrap(), 5);
+    assert_eq!(sf.get_magic(), 0x05025702);
+    assert_eq!(sf.get_algorithm(), Some("BLAKE2b".to_string()));
+    assert_eq!(sf.get_entry_size(), 40);
+}
+
+#[test]
+fn test_sleep_create() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+
+    let mut sf = SleepFile::create(
+        &tmp_dir.path().join("empty2.sleep"),
+        0x050257FF,
+        1,
+        None);
+
+    // TODO: binary diff against 'test-data/sleep/empty/empty.sleep'
+
+    let mut sf = SleepFile::create(
+        &tmp_dir.path().join("simple_metadata.sleep"),
+        0x05025702,
+        40,
+        Some("BLAKE2b".into()));
+}
 
 /// Abstract access to Hypercore register
 pub trait HyperRegister {
@@ -210,13 +262,13 @@ pub trait HyperRegister {
     fn len(&self) -> Result<u64>;
 
     /// Total size of this register in bytes.
-    fn len_bytes(&self) -> Result<u64>;
+    fn len_bytes(&mut self) -> Result<u64>;
 
     /// [UNIMPLEMENTED] Intended to do a deeper merkel-tree verification of all stored data
-    fn verify(&self) -> Result<()>;
+    fn verify(&mut self) -> Result<()>;
 
     /// Quick sanity checks on register store robust-ness
-    fn check(&self) -> Result<()>;
+    fn check(&mut self) -> Result<()>;
 
     /// Can this register be appended to?
     fn writable(&self) -> bool;
@@ -266,7 +318,7 @@ impl SleepDirRegister {
             &directory.join(Path::new(&(prefix.to_owned() + ".signatures"))), writable)?;
         let bitfield_sleep = SleepFile::open(
             &directory.join(Path::new(&(prefix.to_owned() + ".bitfield"))), writable)?;
-        let sf = SleepDirRegister {
+        let mut sf = SleepDirRegister {
             tree_sleep,
             sign_sleep,
             bitfield_sleep,
@@ -305,14 +357,14 @@ impl SleepDirRegister {
         let sign_sleep = SleepFile::create(
             &directory.join(Path::new(&(prefix.to_owned() + ".signatures"))),
             0x05025701,
-            65,
+            64,
             Some("Ed25519".to_string()))?;
         let bitfield_sleep = SleepFile::create(
             &directory.join(Path::new(&(prefix.to_owned() + ".bitfield"))),
             0x05025700,
             3328,
             None)?;
-        let sf = SleepDirRegister {
+        let mut sf = SleepDirRegister {
             tree_sleep,
             sign_sleep,
             bitfield_sleep,
@@ -408,7 +460,7 @@ impl HyperRegister {
         // log(N) would go up previous parent nodes (eg, use root_nodes())
         let mut sum: u64 = 0;
         for i in 0..index {
-            let mut leaf = reg.get_tree_entry(i*2)?;
+            let leaf = reg.get_tree_entry(i*2)?;
             sum += u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
         }
         Ok(sum)
@@ -460,12 +512,12 @@ impl HyperRegister for SleepDirRegister {
             bail!("Don't have that chunk");
         }
 
-        let mut data_file = if let Some(ref mut df) = self.data_file {
+        let data_file = if let Some(ref mut df) = self.data_file {
             df
         } else {
             bail!("No data file in this register");
         };
-        let mut leaf = self.tree_sleep.read(index*2)?;
+        let leaf = self.tree_sleep.read(index*2)?;
         let data_len = u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
         // TODO: avoid foot-gun in development: cap at ~1 billion bytes
         assert!(data_len < 2u64.pow(29));
@@ -485,22 +537,33 @@ impl HyperRegister for SleepDirRegister {
 
     fn append(&mut self, data: &[u8]) -> Result<u64> {
 
-        let index = self.len()?;
-        let hash = HyperRegister::hash_roots(self, index+1)?;
-
-        let mut data_file = if let Some(ref df) = self.data_file {
-            df
-        } else {
+        if !self.data_file.is_some() {
             bail!("No data file in this register");
         };
+
+        let index = self.len()?;
         // 1. Hash data chunk
+        let leaf_hash = HyperRegister::hash_leaf(data);
+
         // 2. Append data to data file
-        data_file.seek(SeekFrom::End(0))?;
-        data_file.write_all(data)?;
-        // 3. Add hash to tree
+        if let Some(ref mut df) = self.data_file {
+            df.seek(SeekFrom::End(0))?;
+            df.write_all(data)?;
+            df.sync_data()?;
+        }
+
+        // 3. Add hash to tree file, update merkel tree
+        self.tree_sleep.write(index*2, &leaf_hash)?;
+        // TODO: tree_parent_index(u64) -> u64 function
+        // TODO: tree_child_entries(u64) function
+ 
         // 4. Add signature to signature file
+        let root_hash = HyperRegister::hash_roots(self, index+1)?;
+        let root_sig = ed25519::signature(&root_hash, &self.secret_key.clone().unwrap());
+        self.sign_sleep.append(&root_sig)?;
+ 
         // 5. Update bitfile
-        unimplemented!()
+        Ok(index)
     }
 
     fn len(&self) -> Result<u64> {
@@ -515,22 +578,22 @@ impl HyperRegister for SleepDirRegister {
         }
     }
 
-    fn len_bytes(&self) -> Result<u64> {
-        // Total binary size of data file.
-        let mut data_file = if let Some(ref df) = self.data_file {
-            df
-        } else {
-            bail!("No data file in this register");
-        };
-        // Elaborate version will iterate through tree root nodes.
-        Ok(data_file.metadata()?.len())
+    fn len_bytes(&mut self) -> Result<u64> {
+        // TODO: this is a naive (linear) implementation
+        // log(N) would go up previous parent nodes (eg, use root_nodes())
+        let mut sum: u64 = 0;
+        for i in 0..self.len()? {
+            let leaf = self.get_tree_entry(i*2)?;
+            sum += u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
+        }
+        Ok(sum)
     }
 
-    fn verify(&self) -> Result<()> {
+    fn verify(&mut self) -> Result<()> {
         unimplemented!()
     }
 
-    fn check(&self) -> Result<()> {
+    fn check(&mut self) -> Result<()> {
         let sign_len = self.sign_sleep.len()?;
         let tree_len = self.tree_sleep.len()?;
         if (tree_len == 0) && (sign_len == 0) {
@@ -539,10 +602,69 @@ impl HyperRegister for SleepDirRegister {
         if tree_len != (sign_len * 2) - 1 {
             bail!("Inconsistent SLEEP signature/tree file sizes");
         }
+        let computed = self.len_bytes()?;
+        if let Some(ref df) = self.data_file {
+            let file_size = df.metadata()?.len();
+            if file_size != computed {
+                bail!("Computed vs. data file size mismatch");
+            }
+        }
         Ok(())
     }
 
     fn writable(&self) -> bool {
         unimplemented!()
     }
+}
+
+#[test]
+fn test_sdr_open() {
+
+    let mut sdr = SleepDirRegister::open(
+       Path::new("test-data/dat/simple/.dat/"), "metadata", false).unwrap();
+
+    // Values from 'dat log'
+    assert_eq!(sdr.len().unwrap(), 3);
+    assert_eq!(sdr.len_bytes().unwrap(), 145);
+
+    let mut sdr = SleepDirRegister::open(
+       Path::new("test-data/dat/simple/.dat/"), "content", false).unwrap();
+
+    // Values from 'dat log'
+    assert_eq!(sdr.len().unwrap(), 2);
+    assert_eq!(sdr.len_bytes().unwrap(), 204);
+}
+
+#[test]
+fn test_sdr_create() {
+
+    use tempdir::TempDir;
+
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+
+    let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
+
+    assert_eq!(sdr.len().unwrap(), 0);
+    assert_eq!(sdr.len_bytes().unwrap(), 0);
+}
+
+#[test]
+fn test_sdr_append() {
+
+    use tempdir::TempDir;
+
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+
+    let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
+
+    sdr.append("hello world!".as_bytes()).unwrap();
+    sdr.check().unwrap();
+    assert_eq!(sdr.len().unwrap(), 1);
+    assert_eq!(sdr.len_bytes().unwrap(), 12);
+    for i in 0..256 {
+        sdr.append(&[1,2,3,4,5]).unwrap();
+    }
+    sdr.check().unwrap();
+    assert_eq!(sdr.len().unwrap(), 1+256);
+    assert_eq!(sdr.len_bytes().unwrap(), 12 + (256*5));
 }

@@ -29,7 +29,7 @@ fn run() -> Result<()> {
         ("info", Some(subm)) => {
             let dir = Path::new(subm.value_of("DIR").unwrap());
             let prefix = subm.value_of("prefix").unwrap();
-            let sdr = SleepDirRegister::open(dir, prefix, false)?;
+            let mut sdr = SleepDirRegister::open(dir, prefix, false)?;
             //debug!(println!("{:?}", sdr));
             println!("Entry count: {}", sdr.len()?);
             println!("Total size (bytes): {}", sdr.len_bytes()?);
