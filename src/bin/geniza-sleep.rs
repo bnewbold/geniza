@@ -8,7 +8,6 @@ extern crate geniza;
 // TODO: more careful import
 use geniza::*;
 use std::path::Path;
-
 use clap::{App, SubCommand};
 
 fn run() -> Result<()> {
