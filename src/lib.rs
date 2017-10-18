@@ -96,11 +96,11 @@ impl SleepFile {
         f.read_exact(&mut header)?;
         let version: u8 = header[4];
         if version != 0 {
-            return Err("Invalid SLEEP header: version must be 0".into());
+            bail!("Invalid SLEEP header: version must be 0");
         }
         let algo_len: u8 = header[7];
         if algo_len > 24 {
-            return Err("Invalid SLEEP header: can't have algo_len > 24".into());
+            bail!("Invalid SLEEP header: can't have algo_len > 24");
         }
         let algorithm_name = if algo_len == 0 { None } else {
             Some(String::from_utf8_lossy(&header[8..(8+(algo_len as usize))]).into_owned())
@@ -116,8 +116,8 @@ impl SleepFile {
         Ok(sf)
     }
 
+    /// This function will *not* allow overwriting an existing file.
     pub fn create(path: &Path, magic: u32, entry_size: u16, algo: Option<String>) -> Result<SleepFile> {
-        // This function will *not* allow overwriting an existing file.
 
         let mut header = [0; 32];
         u32::to_be(magic).encode_fixed(&mut header[0..4]);
@@ -127,7 +127,7 @@ impl SleepFile {
             let name = name.as_bytes();
             let algo_len = name.len();
             if algo_len > 24 {
-                return Err("Algorithm name must be 24 bytes at most".into());
+                bail!("Algorithm name must be 24 bytes at most");
             }
             header[7] = algo_len as u8;
             header[8..(8+algo_len)].clone_from_slice(name);
@@ -159,7 +159,7 @@ impl SleepStorage for SleepFile {
     fn read(&mut self, index: u64) -> Result<Vec<u8>> {
         let entry_size = self.entry_size as usize;
         if index + 1 > self.len()? {
-            return Err("Tried to read beyond end of SLEEP file".into());
+            bail!("Tried to read beyond end of SLEEP file");
         }
         let mut entry = vec![0; entry_size];
         self.file.seek(SeekFrom::Start(32 + (entry_size as u64) * index))?;
@@ -170,7 +170,7 @@ impl SleepStorage for SleepFile {
     fn write(&mut self, index: u64, data: &[u8]) -> Result<()> {
         // TODO: need to extend file seek beyond end?
         if data.len() != self.entry_size as usize {
-            return Err("Tried to write mis-sized data".into());
+            bail!("Tried to write mis-sized data");
         }
         self.file.seek(SeekFrom::Start(32 + (self.entry_size as u64) * index))?;
         self.file.write_all(&data)?;
@@ -180,7 +180,7 @@ impl SleepStorage for SleepFile {
     fn len(&self) -> Result<u64> {
         let length = self.file.metadata()?.len();
         if length < 32 || (length - 32) % (self.entry_size as u64) != 0 {
-            return Err("Bad SLEEP file: missing header or not multiple of entry_size".into());
+            bail!("Bad SLEEP file: missing header or not multiple of entry_size");
         }
         return Ok((length - 32) / (self.entry_size as u64))
     }
@@ -278,8 +278,8 @@ impl SleepDirRegister {
         Ok(sf)
     }
 
+    /// In addition to what one would expect, also creates an Ed25519 key-pair using OsRng
     pub fn create(directory: &Path, prefix: &str) -> Result<SleepDirRegister> {
-        // TODO: audit this for crypto strength... is rand appropriate?
         let mut rand_seed = vec![0; 32];
         let mut rng = rand::OsRng::new()?;
         rng.fill_bytes(&mut rand_seed);
@@ -358,17 +358,8 @@ impl HyperRegister {
 
     pub fn hash_roots(reg: &mut HyperRegister, index: u64) -> Result<Vec<u8>> {
         let mut buf = [0; 40];
-/*
-        // TODO: check overflow
-        let sum_size = u64::from_be(FixedInt::decode_fixed(&lhash[32..40])) +
-                       u64::from_be(FixedInt::decode_fixed(&rhash[32..40]));
-        u64::to_be(sum_size as u64)
-            .encode_fixed(&mut buf[32..40]);
-*/
-
         let mut hash = Blake2b::new(32);
         let mut index_buf = [0; 8];
-        // TODO: turn these single bytes into declared constants
         hash.input(&[2; 1]);
         for ri in HyperRegister::root_nodes(index) {
             u64::to_be(ri).encode_fixed(&mut index_buf);
@@ -418,7 +409,6 @@ impl HyperRegister {
         let mut sum: u64 = 0;
         for i in 0..index {
             let mut leaf = reg.get_tree_entry(i*2)?;
-            // TODO: overflow
             sum += u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
         }
         Ok(sum)
@@ -467,13 +457,13 @@ impl HyperRegister for SleepDirRegister {
 
         // Do we even have this chunk?
         if !self.has(index)? {
-            return Err("Don't have that chunk".into());
+            bail!("Don't have that chunk");
         }
 
         let mut data_file = if let Some(ref mut df) = self.data_file {
             df
         } else {
-            return Err("No data file in this register".into());
+            bail!("No data file in this register");
         };
         let mut leaf = self.tree_sleep.read(index*2)?;
         let data_len = u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
@@ -501,7 +491,7 @@ impl HyperRegister for SleepDirRegister {
         let mut data_file = if let Some(ref df) = self.data_file {
             df
         } else {
-            return Err("No data file in this register".into());
+            bail!("No data file in this register");
         };
         // 1. Hash data chunk
         // 2. Append data to data file
@@ -519,7 +509,7 @@ impl HyperRegister for SleepDirRegister {
         if tree_len == 0 {
             Ok(0)
         } else if tree_len % 2 != 1 {
-            Err("Even number of tree file SLEEP entries".into())
+            bail!("Even number of tree file SLEEP entries");
         } else {
             Ok((self.tree_sleep.len()? / 2) + 1)
         }
@@ -530,7 +520,7 @@ impl HyperRegister for SleepDirRegister {
         let mut data_file = if let Some(ref df) = self.data_file {
             df
         } else {
-            return Err("No data file in this register".into());
+            bail!("No data file in this register");
         };
         // Elaborate version will iterate through tree root nodes.
         Ok(data_file.metadata()?.len())
@@ -547,13 +537,12 @@ impl HyperRegister for SleepDirRegister {
             return Ok(())
         }
         if tree_len != (sign_len * 2) - 1 {
-            return Err("Inconsistent SLEEP signature/tree file sizes".into());
+            bail!("Inconsistent SLEEP signature/tree file sizes");
         }
         Ok(())
     }
 
     fn writable(&self) -> bool {
         unimplemented!()
-        //self.sign_sleep.file.writable()
     }
 }

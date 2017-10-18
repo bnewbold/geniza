@@ -1,7 +1,7 @@
 
 #[macro_use]
+extern crate error_chain;
 extern crate clap;
-
 extern crate geniza;
 
 // TODO: more careful import
@@ -32,6 +32,7 @@ fn run() -> Result<()> {
             let sdr = SleepDirRegister::open(dir, prefix, false)?;
             //debug!(println!("{:?}", sdr));
             println!("Entry count: {}", sdr.len()?);
+            println!("Total size (bytes): {}", sdr.len_bytes()?);
         },
         ("create", Some(subm)) => {
             let dir = Path::new(subm.value_of("DIR").unwrap());
@@ -48,21 +49,4 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-// TODO: is there a shorter error_chain 'main()' to use here?
-fn main() {
-    if let Err(ref e) = run() {
-        println!("error: {}", e);
-
-        for e in e.iter().skip(1) {
-            println!("caused by: {}", e);
-        }
-
-        // The backtrace is not always generated. Try to run this example
-        // with `RUST_BACKTRACE=1`.
-        if let Some(backtrace) = e.backtrace() {
-            println!("backtrace: {:?}", backtrace);
-        }
-
-        ::std::process::exit(1);
-    }
-}
+quick_main!(run);
