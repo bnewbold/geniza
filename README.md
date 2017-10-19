@@ -17,3 +17,9 @@ Libraries:
 - integer-encoding for varints
 - ??? for protobuf
 - ??? for Kademlia Mainline DHT
+
+protobuf code generated with `rust-protobuf`; the `protoc` tool (`sudo apt
+install protobuf-compiler`) and rust plugin `protoc-gen-rust` (`cargo install
+protobuf`) are only needed when changing .proto files, eg:
+
+    protoc --rust_out . network_proto.proto

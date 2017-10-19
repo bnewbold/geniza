@@ -16,6 +16,7 @@ extern crate error_chain;
 extern crate integer_encoding;
 extern crate crypto;
 extern crate rand;
+extern crate protobuf;
 
 #[cfg(test)]
 extern crate tempdir;
@@ -35,5 +36,7 @@ pub use errors::*;
 // Organize code internally (files, modules), but pull it all into a flat namespace to export.
 mod sleep;
 mod register;
+pub mod network_proto;
+pub mod drive_proto;
 pub use sleep::*;
 pub use register::*;
