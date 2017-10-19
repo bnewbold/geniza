@@ -24,3 +24,4 @@ src/build/
 
 # Don't ignore this file itself
 !.gitignore
+!.travis.yml
