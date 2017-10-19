@@ -1,0 +1,7 @@
+
+protobuf schema is:
+
+    The MIT License (MIT)
+    Copyright (c) 2016 Mathias Buus
+
+from: https://github.com/mafintosh/hypercore-protocol/blob/master/schema.proto

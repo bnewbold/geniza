@@ -1,0 +1,15 @@
+
+Things that were underspecified in the spec/whitepaper:
+
+- endianness of magic (big-endian)
+- uppercase/lowercase of algorithm name (inconsistent in one place)
+- what if there is only a single chunk/entry in a register tree? then a leaf
+  acts as a root?
+
+"You can use the byteOffset property in the Stat meta- data object to seek into
+the right position in the content for the start of this chunk." => unnecessary,
+node.js specific?
+
+Clarify: appending to tree SLEEP results in writes into middle of file (for
+root nodes). This seems not-great for performance (can't bulk-write). Better to
+cache or work in RAM then batch commit?

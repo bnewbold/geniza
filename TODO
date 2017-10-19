@@ -1,0 +1,47 @@
+
+next:
+- appending to register
+- verifying register
+- reading/writing secret key for register
+- bitfield stuff
+    https://docs.rs/bit_field/0.8.0/bit_field/trait.BitArray
+- protobuf infra
+- basic drive trait
+- 'drive log' command (shows actions)
+- network infra
+- 'geniza clone' command
+- 'geniza checkout' command
+- 'geniza init', 'geniza commit' commands
+- 'geniza broadcast' command
+
+meta:
+- rustfmt
+- github
+- travis tests (linux, osx)
+
+specific tests:
+- sleep info a variety of bad sleep files, should error
+- sleep create a known file, should be same as empty (also a "Rot13" algo file)
+- create a register, binary compare against known-good
+
+sleep: SLEEP file I/O
+register: hypercore registers/journal streams, signing
+drive: hyperdrive
+sync: dat network protocol, discover
+geniza: command line, swarm
+
+
+
+Backburner:
+- refactor to something pwrite based for file I/O
+    https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html
+    https://github.com/vasi/positioned-io
+- mmap
+    https://docs.rs/scroll/0.7.0/scroll/
+- switch to byteorder for endian reads/writes
+- --json args to most CLI commands
+- simplify APIs
+- SleepFile from existing File
+- refactor key generation into generic/re-usable function
+- turn magic numbers in tree nodes into declared (public?) constants
+- root_nodes as an iterator? (vs returning a Vec)
