@@ -319,7 +319,7 @@ impl SleepDirRegister {
 
 impl HyperRegister for SleepDirRegister {
 
-    fn has(&self, index: u64) -> Result<bool> {
+    fn has(&self, _index: u64) -> Result<bool> {
         // looks in bitfield
         unimplemented!()
     }
@@ -397,7 +397,7 @@ impl HyperRegister for SleepDirRegister {
             let (left, right) = (self.tree_sleep.read(left)?,
                                  self.tree_sleep.read(right)?);
             let parent_hash = HyperRegister::hash_parent(&left[0..40], &right[0..40]);
-            self.tree_sleep.write(parent, &parent_hash[0..40]);
+            self.tree_sleep.write(parent, &parent_hash[0..40])?;
             parent = HyperRegister::tree_parent_index(index);
         }
  
