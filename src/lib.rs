@@ -13,6 +13,8 @@
 
 #[macro_use]
 extern crate error_chain;
+extern crate log;
+extern crate env_logger;
 extern crate integer_encoding;
 extern crate crypto;
 extern crate rand;
@@ -23,10 +25,12 @@ extern crate tempdir;
 
 #[allow(unused_doc_comment)]
 mod errors {
+
     // Create the Error, ErrorKind, ResultExt, and Result types
     error_chain! {
         foreign_links { Fmt(::std::fmt::Error);
-                        Io(::std::io::Error) #[cfg(unix)]; }
+                        Io(::std::io::Error) #[cfg(unix)];
+                        Protobuf(::protobuf::ProtobufError); }
     }
 }
 
@@ -35,8 +39,10 @@ pub use errors::*;
 
 // Organize code internally (files, modules), but pull it all into a flat namespace to export.
 mod sleep;
+pub use sleep::*;
 mod register;
+pub use register::*;
+mod sync;
+pub use sync::*;
 pub mod network_proto;
 pub mod drive_proto;
-pub use sleep::*;
-pub use register::*;
