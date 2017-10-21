@@ -1,4 +1,4 @@
-dat-paper.pdf
+papers/
 target/
 **/*.rs.bk
 *.o
