@@ -10,6 +10,10 @@ Things that were underspecified in the spec/whitepaper:
 - "append only" is mentioned many times, but need to write "back in" to merkel
   tree on many occasions
 - inconsistent message names between .proto and whitepaper
+- protocol extension stuff not in the whitepaper
+- whitepaper should be versioned/tagged, or marked as "work in progress"
+- encryption not really covered in whitepaper... seems to be XSalsa20 XOR'd
+  with data
 
 "You can use the byteOffset property in the Stat meta- data object to seek into
 the right position in the content for the start of this chunk." => unnecessary,
@@ -18,7 +22,11 @@ node.js specific?
 "If you are sharing multiple hypercores on the same port you can use this event
 to wait for the remote peer to indicate which hypercore they are interested inj"
 
-
 Clarify: appending to tree SLEEP results in writes into middle of file (for
 root nodes). This seems not-great for performance (can't bulk-write). Better to
 cache or work in RAM then batch commit?
+
+varint-encoded message prefix for network messages still feels sort of
+inefficient... fixed 32-bit length makes more sense to me, seems like
+efficiency gains would be pretty small. would need benchmarking.
+  https://developers.google.com/protocol-buffers/docs/techniques#streaming
