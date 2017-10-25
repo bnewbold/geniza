@@ -18,6 +18,7 @@ extern crate log;
 extern crate env_logger;
 extern crate integer_encoding;
 extern crate crypto;
+extern crate sodiumoxide;
 extern crate rand;
 extern crate protobuf;
 

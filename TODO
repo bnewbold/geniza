@@ -49,6 +49,9 @@ geniza: command line, swarm
 
 
 Backburner:
+- disable sodiumoxide serde feature
+- sodiumoxcide static link
+    https://safenetforum.org/t/building-a-non-dynamically-linked-executable-of-safe-vault/9811/6
 - SLEEP API: should just be empty string for algo-name, not Option<>
 - I have the SLEEP/register naming wrong... sleep refers to the directory?
 - refactor to something pwrite based for file I/O
