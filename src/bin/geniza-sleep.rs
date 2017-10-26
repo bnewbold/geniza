@@ -3,6 +3,7 @@
 extern crate error_chain;
 #[macro_use]
 extern crate clap;
+extern crate env_logger;
 extern crate geniza;
 
 // TODO: more careful import
@@ -11,6 +12,8 @@ use std::path::Path;
 use clap::{App, SubCommand};
 
 fn run() -> Result<()> {
+
+    env_logger::init().unwrap();
  
     let matches = App::new("geniza-sleep")
         .version(env!("CARGO_PKG_VERSION"))

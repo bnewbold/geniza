@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate error_chain;
 extern crate clap;
+extern crate env_logger;
 extern crate geniza;
 
 // TODO: more careful import
@@ -9,6 +10,8 @@ use geniza::*;
 use clap::{App, SubCommand};
 
 fn run() -> Result<()> {
+
+    env_logger::init().unwrap();
  
     let matches = App::new("geniza-net")
         .version(env!("CARGO_PKG_VERSION"))
@@ -16,7 +19,7 @@ fn run() -> Result<()> {
             .about("Connects to a peer and exchanges handshake")
             .arg_from_usage("<host_port> 'peer host:port to connect to'")
             .arg_from_usage("<dat_key> 'dat key (public key) to register with'"))
-        .subcommand(SubCommand::with_name("clone")
+        .subcommand(SubCommand::with_name("receive-all")
             .about("Connects to a peer, pulls all metadata and content")
             .arg_from_usage("<host_port> 'peer host:port to connect to'")
             .arg_from_usage("<dat_key> 'dat key (public key) to register with'"))
@@ -44,7 +47,7 @@ fn run() -> Result<()> {
                 false)?;
             println!("Done!");
         },
-        ("clone", Some(subm)) => {
+        ("receive-all", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
             if dat_key.len() != 32*2 {
