@@ -14,6 +14,7 @@ Things that were underspecified in the spec/whitepaper:
 - whitepaper should be versioned/tagged, or marked as "work in progress"
 - encryption not really covered in whitepaper... seems to be XSalsa20 XOR'd
   with data
+- "ping" mechanism: sending a 0 byte
 
 "You can use the byteOffset property in the Stat meta- data object to seek into
 the right position in the content for the start of this chunk." => unnecessary,
@@ -30,3 +31,19 @@ varint-encoded message prefix for network messages still feels sort of
 inefficient... fixed 32-bit length makes more sense to me, seems like
 efficiency gains would be pretty small. would need benchmarking.
   https://developers.google.com/protocol-buffers/docs/techniques#streaming
+
+
+### Small Bugs
+
+hypercore: 'Request' without 'Have' crashes dat, despite whitepaper saying "You
+should only send Have messages to peers who have expressed interest in this
+region with Want messages.":
+
+    /usr/lib/node_modules/dat/node_modules/hypercore/lib/replicate.js:119
+            if (!self.remoteBitfield.set(request.index, true)) return
+                                    ^
+
+    TypeError: Cannot read property 'set' of null
+        at onvalue (/usr/lib/node_modules/dat/node_modules/hypercore/lib/replicate.js:119:33)
+        at onread (/usr/lib/node_modules/dat/node_modules/random-access-file/index.js:130:14)
+        at FSReqWrap.wrapper [as oncomplete] (fs.js:629:17)

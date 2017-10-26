@@ -1,0 +1,9 @@
+
+Like many libsodium wrappers, and apparently *all* reasonable Rust bindings,
+sodiumoxcide does not expose the `crypto_stream_xsalsa20_xor_ic` function,
+necessary to use libsodium in an endless steam configuration.
+
+https://nacl.cr.yp.to/stream.html
+https://github.com/maidsafe/rust_sodium
+https://groups.google.com/forum/#!original/boring-crypto/BpUmNMXKMYQ/EEwAIeQdjacJ
+

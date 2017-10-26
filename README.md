@@ -39,6 +39,9 @@ it will eat-your-data.
 
 ### Dependencies
 
+While (temporarily?) using Cargo's `[patch]` feature to patch sodiumoxide,
+builds require Rust 1.21 (stable circa Oct 2017).
+
 Requires libsodium-dev system-wide (for now).
 
 Notable Rust Libraries:
