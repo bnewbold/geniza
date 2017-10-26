@@ -141,6 +141,9 @@ pub struct DatConnection {
     tcp: TcpStream,
     live: bool,
     key: Key,
+    discovery_key: [u8; 32],
+    data_key: [u8; 32],
+    data_discovery_key: [u8; 32],
     tx_nonce: Nonce,
     tx_offset: u64,
     rx_nonce: Nonce,
@@ -180,6 +183,15 @@ impl Write for DatConnection {
     }
 }
 
+fn discovery_key(key: &Key) => Vec<u8> {
+    // calculate discovery key
+    let mut discovery_key = [0; 32];
+    let mut hash = Blake2b::new_keyed(32, key);
+    hash.input(&"hypercore".as_bytes());
+    hash.result(&mut discovery_key);
+    discovery_key.to_vec()
+}
+
 impl DatConnection {
 
     pub fn connect(host_port: &str, key: &[u8], live: bool) -> Result<DatConnection> {
@@ -189,6 +201,9 @@ impl DatConnection {
         let mut local_id = [0; 32];
         let mut rng = OsRng::new()?;
         rng.fill_bytes(&mut local_id);
+
+        let dk = [0; 32];
+        dk[0..32] = discovery_key(key)[0..32];
 
         // Connect to server
         info!("Connecting to {}", host_port);
@@ -203,6 +218,9 @@ impl DatConnection {
             live,
             remote_id: [0; 32],
             key: Key::from_slice(key).unwrap(), // TODO:
+            discovery_key,
+            data_key: [0; 32],
+            data_discovery_key: [0; 32],
             tx_nonce: tx_nonce,
             tx_offset: 0,
             rx_nonce: gen_nonce(),  // dummy
@@ -211,11 +229,6 @@ impl DatConnection {
 
         // Exchange register/feed
         dc.tcp.set_nodelay(true)?; // Faster handshake
-        // calculate discovery key
-        let mut discovery_key = [0; 32];
-        let mut hash = Blake2b::new_keyed(32, key);
-        hash.input(&"hypercore".as_bytes());
-        hash.result(&mut discovery_key);
         // send register
         let mut register_msg = Feed::new();
         register_msg.set_discoveryKey(discovery_key.to_vec());
