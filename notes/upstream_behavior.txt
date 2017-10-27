@@ -1,0 +1,27 @@
+
+hypercore: 'Request' without 'Have' crashes dat, despite whitepaper saying "You
+should only send Have messages to peers who have expressed interest in this
+region with Want messages.":
+
+    /usr/lib/node_modules/dat/node_modules/hypercore/lib/replicate.js:119
+            if (!self.remoteBitfield.set(request.index, true)) return
+                                    ^
+
+    TypeError: Cannot read property 'set' of null
+        at onvalue (/usr/lib/node_modules/dat/node_modules/hypercore/lib/replicate.js:119:33)
+        at onread (/usr/lib/node_modules/dat/node_modules/random-access-file/index.js:130:14)
+        at FSReqWrap.wrapper [as oncomplete] (fs.js:629:17)
+
+dat-network seems to keep trying to send data every 30 seconds even if remote
+client has disconnected:
+
+    [...]
+    dat-network Uploaded data: 984105 +500ms
+    dat-network Uploaded data: 984105 +500ms
+    dat-network Uploaded data: 984105 +501ms
+    dat-network Uploaded data: 984105 +499ms
+    dat-network Uploaded data: 984105 +501ms
+    dat-network Uploaded data: 984105 +500ms
+    dat-network Uploaded data: 984105 +500ms
+    [...]
+

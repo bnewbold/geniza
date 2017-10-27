@@ -32,18 +32,3 @@ inefficient... fixed 32-bit length makes more sense to me, seems like
 efficiency gains would be pretty small. would need benchmarking.
   https://developers.google.com/protocol-buffers/docs/techniques#streaming
 
-
-### Small Bugs
-
-hypercore: 'Request' without 'Have' crashes dat, despite whitepaper saying "You
-should only send Have messages to peers who have expressed interest in this
-region with Want messages.":
-
-    /usr/lib/node_modules/dat/node_modules/hypercore/lib/replicate.js:119
-            if (!self.remoteBitfield.set(request.index, true)) return
-                                    ^
-
-    TypeError: Cannot read property 'set' of null
-        at onvalue (/usr/lib/node_modules/dat/node_modules/hypercore/lib/replicate.js:119:33)
-        at onread (/usr/lib/node_modules/dat/node_modules/random-access-file/index.js:130:14)
-        at FSReqWrap.wrapper [as oncomplete] (fs.js:629:17)
