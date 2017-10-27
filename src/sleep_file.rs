@@ -12,7 +12,6 @@ use errors::*;
 ///
 /// Back-ends could be in RAM, on disk, remote HTTP, etc.
 pub trait SleepStorage {
-
     /// Returns the 32-bit "magic word", indicating the content type, in native format (aka, not
     /// necessarily big-endian).
     fn get_magic(&self) -> u32;
@@ -50,12 +49,10 @@ pub struct SleepFile {
 }
 
 impl SleepFile {
-
     // TODO: 'from' pre-existing File
 
     // Something here to allow paths as references or actual Path...
     pub fn open(path: &Path, writable: bool) -> Result<SleepFile> {
-
         let mut f = OpenOptions::new()
             .read(true)
             .write(writable)
@@ -71,8 +68,10 @@ impl SleepFile {
         if algo_len > 24 {
             bail!("Invalid SLEEP header: can't have algo_len > 24");
         }
-        let algorithm_name = if algo_len == 0 { None } else {
-            Some(String::from_utf8_lossy(&header[8..(8+(algo_len as usize))]).into_owned())
+        let algorithm_name = if algo_len == 0 {
+            None
+        } else {
+            Some(String::from_utf8_lossy(&header[8..(8 + (algo_len as usize))]).into_owned())
         };
         let sf = SleepFile {
             file: f,
@@ -86,8 +85,12 @@ impl SleepFile {
     }
 
     /// This function will *not* allow overwriting an existing file.
-    pub fn create(path: &Path, magic: u32, entry_size: u16, algo: Option<String>) -> Result<SleepFile> {
-
+    pub fn create(
+        path: &Path,
+        magic: u32,
+        entry_size: u16,
+        algo: Option<String>,
+    ) -> Result<SleepFile> {
         let mut header = [0; 32];
         u32::to_be(magic).encode_fixed(&mut header[0..4]);
         header[4] = 0; // version
@@ -99,7 +102,7 @@ impl SleepFile {
                 bail!("Algorithm name must be 24 bytes at most");
             }
             header[7] = algo_len as u8;
-            header[8..(8+algo_len)].clone_from_slice(name);
+            header[8..(8 + algo_len)].clone_from_slice(name);
         } else {
             header[7] = 0;
         };
@@ -120,10 +123,15 @@ impl SleepFile {
 }
 
 impl SleepStorage for SleepFile {
-
-    fn get_magic(&self) -> u32 { self.magic }
-    fn get_algorithm(&self) -> Option<String> { self.algorithm_name.clone() }
-    fn get_entry_size(&self) -> u16 { self.entry_size }
+    fn get_magic(&self) -> u32 {
+        self.magic
+    }
+    fn get_algorithm(&self) -> Option<String> {
+        self.algorithm_name.clone()
+    }
+    fn get_entry_size(&self) -> u16 {
+        self.entry_size
+    }
 
     fn read(&mut self, index: u64) -> Result<Vec<u8>> {
         let entry_size = self.entry_size as usize;
@@ -131,7 +139,8 @@ impl SleepStorage for SleepFile {
             bail!("Tried to read beyond end of SLEEP file");
         }
         let mut entry = vec![0; entry_size];
-        self.file.seek(SeekFrom::Start(32 + (entry_size as u64) * index))?;
+        self.file
+            .seek(SeekFrom::Start(32 + (entry_size as u64) * index))?;
         self.file.read_exact(&mut entry)?;
         Ok(entry)
     }
@@ -141,7 +150,8 @@ impl SleepStorage for SleepFile {
         if data.len() != self.entry_size as usize {
             bail!("Tried to write mis-sized data");
         }
-        self.file.seek(SeekFrom::Start(32 + (self.entry_size as u64) * index))?;
+        self.file
+            .seek(SeekFrom::Start(32 + (self.entry_size as u64) * index))?;
         self.file.write_all(&data)?;
         Ok(())
     }
@@ -156,23 +166,20 @@ impl SleepStorage for SleepFile {
         if length < 32 || (length - 32) % (self.entry_size as u64) != 0 {
             bail!("Bad SLEEP file: missing header or not multiple of entry_size");
         }
-        return Ok((length - 32) / (self.entry_size as u64))
+        return Ok((length - 32) / (self.entry_size as u64));
     }
 }
 
 #[test]
 fn test_sleep_open() {
-
-    let sf = SleepFile::open(
-       Path::new("test-data/sleep/empty/empty.sleep"), false).unwrap();
+    let sf = SleepFile::open(Path::new("test-data/sleep/empty/empty.sleep"), false).unwrap();
 
     assert_eq!(sf.len().unwrap(), 0);
     assert_eq!(sf.get_magic(), 0x050257FF);
     assert_eq!(sf.get_algorithm(), None);
     assert_eq!(sf.get_entry_size(), 1);
 
-    let sf = SleepFile::open(
-       Path::new("test-data/dat/simple/.dat/metadata.tree"), false).unwrap();
+    let sf = SleepFile::open(Path::new("test-data/dat/simple/.dat/metadata.tree"), false).unwrap();
 
     // Calculated from 'dat log'
     assert_eq!(sf.len().unwrap(), 5);
@@ -183,15 +190,10 @@ fn test_sleep_open() {
 
 #[test]
 fn test_sleep_create() {
-
     use tempdir::TempDir;
     let tmp_dir = TempDir::new("geniza-test").unwrap();
 
-    SleepFile::create(
-        &tmp_dir.path().join("empty2.sleep"),
-        0x050257FF,
-        1,
-        None).unwrap();
+    SleepFile::create(&tmp_dir.path().join("empty2.sleep"), 0x050257FF, 1, None).unwrap();
 
     // TODO: binary diff against 'test-data/sleep/empty/empty.sleep'
 
@@ -199,5 +201,6 @@ fn test_sleep_create() {
         &tmp_dir.path().join("simple_metadata.sleep"),
         0x05025702,
         40,
-        Some("BLAKE2b".into())).unwrap();
+        Some("BLAKE2b".into()),
+    ).unwrap();
 }

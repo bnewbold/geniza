@@ -1,4 +1,4 @@
-// Free Software under GPL-3.0, see LICENSE 
+// Free Software under GPL-3.0, see LICENSE
 // Copyright 2017 Bryan Newbold
 
 //! This is a hobby/learning implementation of the dat distributed data synchronization system.
@@ -13,16 +13,16 @@
 //! Additional notes in the source code for this repo, under the 'notes' directory. Also, see
 //! README.
 
+extern crate crypto;
+extern crate env_logger;
 #[macro_use]
 extern crate error_chain;
+extern crate integer_encoding;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
-extern crate integer_encoding;
-extern crate crypto;
-extern crate sodiumoxide;
-extern crate rand;
 extern crate protobuf;
+extern crate rand;
+extern crate sodiumoxide;
 
 #[cfg(test)]
 extern crate tempdir;
