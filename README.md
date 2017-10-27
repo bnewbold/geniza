@@ -6,17 +6,21 @@
      \__, |\___|_| |_|_/___\__,_|
      |___/                       
 
-this is a very poor / partial / non-compliant dat implementation in rust.
+
+this is a poor / partial / non-compliant dat implementation in rust.
+
 it will eat-your-data.
 
-### Progress
+### Status
+
+[![Build Status](https://travis-ci.org/bnewbold/geniza.svg?branch=master)](https://travis-ci.org/bnewbold/geniza)
 
 - [ ] SLEEP v2 Files
     - [x] read/write file headers
     - [x] read/write file chunks as raw bytes
     - [ ] pread/pwrite file chunks without seeking
     - [x] read data entries by index
-    - [ ] append data entries
+    - [x] append data entries
     - [ ] verify entire register (signatures and merkel tree)
     - [ ] bitfields
 - [ ] Drive metadata and files
