@@ -39,8 +39,12 @@ matrix:
 
 before_install:
 
+# Need to install libsodium-dev, which isn't in the system apt repo
 install:
-  - sudo apt install libsodium-dev pkg-config
+  - sudo apt install pkg-config build-essential libtool autotools-dev automake check git yasm pkg-config
+  - wget http://archive.ubuntu.com/ubuntu/pool/universe/libs/libsodium/libsodium18_1.0.8-5_amd64.deb
+  - wget http://archive.ubuntu.com/ubuntu/pool/universe/libs/libsodium/libsodium-dev_1.0.8-5_amd64.deb
+  - sudo dpkg -i libsodium-dev_1.0.8-5_amd64.deb libsodium18_1.0.8-5_amd64.deb
   - source ~/.cargo/env || true
 
 cache: cargo
