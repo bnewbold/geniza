@@ -229,18 +229,47 @@ pub struct SleepDirRegister {
     secret_key: Option<Vec<u8>>,
 }
 
+fn read_key_file(path: &Path, is_secret: bool) -> Result<Vec<u8>> {
+
+    let expected = if is_secret { 64 } else { 32 };
+    let mut key = vec![];
+    let mut key_file = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .open(path)?;
+    key_file.read_to_end(&mut key)?;
+    if key.len() != expected {
+        bail!("Bad key file (len {} != {}): {:?}", key.len(), expected, path);
+    }
+    Ok(key)
+}
+
+fn write_key_file(path: &Path, key: &[u8], is_secret: bool) -> Result<()> {
+
+    let expected = if is_secret { 64 } else { 32 };
+    if key.len() != expected {
+        bail!("Bad key file (len {} != {}): {:?}", key.len(), expected, path);
+    }
+    let mut key_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    key_file.write_all(&key)?;
+    Ok(())
+}
+
 impl SleepDirRegister {
 
     pub fn open(directory: &Path, prefix: &str, writable: bool) -> Result<SleepDirRegister> {
         // read public key from disk
-        let mut pub_key: Vec<u8> = vec![];
-        {
-            let mut key_file = OpenOptions::new()
-                .read(true)
-                .write(false)
-                .open(directory.join(Path::new(&(prefix.to_owned() + ".key"))))?;
-            // TODO: check key length?
-            key_file.read_to_end(&mut pub_key)?;
+        let pub_key: Vec<u8> = read_key_file(
+            &directory.join(Path::new(&(prefix.to_owned() + ".key"))),
+            false)?;
+        let mut secret_key = None;
+        if writable {
+            secret_key = Some(read_key_file(
+                &directory.join(Path::new(&(prefix.to_owned() + ".secret_key"))),
+                true)?);
         }
         let data_path = &(prefix.to_owned() + ".data");
         let data_path = Path::new(data_path);
@@ -264,7 +293,7 @@ impl SleepDirRegister {
             bitfield_sleep,
             data_file,
             pub_key,
-            secret_key: None,
+            secret_key,
         };
         sf.check()?;
         Ok(sf)
@@ -276,13 +305,14 @@ impl SleepDirRegister {
         let mut rng = OsRng::new()?;
         rng.fill_bytes(&mut rand_seed);
         let (secret_key, pub_key) = ed25519::keypair(&rand_seed);
-        {
-            let mut key_file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(directory.join(Path::new(&(prefix.to_owned() + ".key"))))?;
-            key_file.write_all(&pub_key)?;
-        }
+        write_key_file(
+            &directory.join(Path::new(&(prefix.to_owned() + ".key"))),
+            &pub_key,
+            false)?;
+        write_key_file(
+            &directory.join(Path::new(&(prefix.to_owned() + ".secret_key"))),
+            &secret_key,
+            true)?;
         let data_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -356,7 +386,7 @@ impl HyperRegister for SleepDirRegister {
         };
         let leaf = self.tree_sleep.read(index*2)?;
         let data_len = u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
-        // TODO: avoid foot-gun in development: cap at ~1 billion bytes
+        // avoid foot-gun in development: cap at ~1 billion bytes
         assert!(data_len < 2u64.pow(29));
 
         // Read chunk
@@ -456,8 +486,9 @@ impl HyperRegister for SleepDirRegister {
         Ok(())
     }
 
+    /// Checks if we have the secret key (such that we can append to this register)
     fn writable(&self) -> bool {
-        unimplemented!()
+        return self.secret_key.is_some()
     }
 }
 
