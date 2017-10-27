@@ -1,3 +1,5 @@
+// Free Software under GPL-3.0, see LICENSE 
+// Copyright 2017 Bryan Newbold
 
 //! This is a hobby/learning implementation of the dat distributed data synchronization system.
 //!

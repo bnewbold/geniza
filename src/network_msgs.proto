@@ -1,3 +1,7 @@
+// File copied from: https://github.com/mafintosh/hypercore-protocol/blob/master/schema.proto
+// Copyright (c) 2016 Mathias Buus
+// MIT License (MIT)
+
 // wire format is <len>(<header><message>)
 // header is a varint, channel << 4 | <4-bit-type>
 

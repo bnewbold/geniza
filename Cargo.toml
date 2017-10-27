@@ -2,6 +2,7 @@
 name = "geniza"
 version = "0.1.0"
 authors = ["Bryan Newbold <bnewbold@robocracy.org>"]
+license = "GPL-3.0"
 
 [dependencies]
 rust-crypto = "^0.2"

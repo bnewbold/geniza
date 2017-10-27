@@ -1,4 +1,7 @@
-// From hyperdrive:lib/messages.js
+// File copied from: https://github.com/mafintosh/hyperdrive/blob/master/lib/messages.js
+// Copyright (c) 2015 Mathias Buus
+// MIT License (MIT)
+
 
 message Index {
   required string type = 1;

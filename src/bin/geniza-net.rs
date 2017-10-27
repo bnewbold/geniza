@@ -1,3 +1,5 @@
+// Free Software under GPL-3.0, see LICENSE 
+// Copyright 2017 Bryan Newbold
 
 #[macro_use]
 extern crate error_chain;
