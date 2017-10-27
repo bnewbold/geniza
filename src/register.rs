@@ -398,7 +398,7 @@ impl HyperRegister for SleepDirRegister {
                                  self.tree_sleep.read(right)?);
             let parent_hash = HyperRegister::hash_parent(&left[0..40], &right[0..40]);
             self.tree_sleep.write(parent, &parent_hash[0..40])?;
-            parent = HyperRegister::tree_parent_index(index);
+            parent = HyperRegister::tree_parent_index(parent);
         }
  
         // 4. Add signature to signature file
@@ -505,9 +505,8 @@ fn test_sdr_append() {
     sdr.check().unwrap();
     assert_eq!(sdr.len().unwrap(), 1);
     assert_eq!(sdr.len_bytes().unwrap(), 12);
-    // XXX: some bug here around >= 5 (?)
-    let count = 4;  // make this ~1000 when things are faster
-    for i in 0..count {
+    let count = 100;  // TODO: make this >1000 when things are faster
+    for _ in 0..count {
         sdr.append(&[1,2,3,4,5]).unwrap();
     }
     sdr.check().unwrap();
