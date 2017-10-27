@@ -65,8 +65,9 @@ fn run() -> Result<()> {
                 host_port,
                 &key_bytes,
                 false)?;
-            dc.receive_all(false)?;
-            dc.receive_all(true)?;
+            // XXX: number here totally arbitrary
+            dc.receive_all(false, 10)?;
+            dc.receive_all(true, 10)?;
             println!("Done!");
         },
         _ => {
