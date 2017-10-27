@@ -12,8 +12,8 @@ use protobuf::parse_from_bytes;
 use integer_encoding::{VarIntReader, VarIntWriter};
 
 use errors::*;
-use network_proto::*;
-use drive_proto::Index;
+use network_msg::*;
+use metadata_msg::Index;
 
 #[derive(Debug)]
 pub enum DatNetMessage {

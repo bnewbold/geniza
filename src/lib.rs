@@ -40,11 +40,11 @@ mod errors {
 pub use errors::*;
 
 // Organize code internally (files, modules), but pull it all into a flat namespace to export.
-mod sleep;
-pub use sleep::*;
-mod register;
-pub use register::*;
-mod sync;
-pub use sync::*;
-pub mod network_proto;
-pub mod drive_proto;
+mod sleep_file;
+pub use sleep_file::*;
+mod sleep_register;
+pub use sleep_register::*;
+mod protocol;
+pub use protocol::*;
+pub mod network_msg;
+pub mod metadata_msg;

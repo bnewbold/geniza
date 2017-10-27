@@ -11,7 +11,7 @@ use crypto::ed25519;
 use rand::{Rng, OsRng};
 
 use errors::*;
-use sleep::*;
+use sleep_file::*;
 
 /// Abstract access to Hypercore register
 pub trait HyperRegister {
