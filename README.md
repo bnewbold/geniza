@@ -26,7 +26,7 @@ it will eat-your-data.
     - [ ] add directory recursively
     - [ ] checkout directory recursively
 - [ ] Networking
-    - [ ] send/receive encrypted messages to a known host
+    - [x] send/receive encrypted messages to a known host
     - [ ] pull register from a known host
     - [ ] sync register to a known host
     - [ ] lookup hosts in DHT swarm by discovery key
