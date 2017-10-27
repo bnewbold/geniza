@@ -163,7 +163,7 @@ impl SleepStorage for SleepFile {
 #[test]
 fn test_sleep_open() {
 
-    let mut sf = SleepFile::open(
+    let sf = SleepFile::open(
        Path::new("test-data/sleep/empty/empty.sleep"), false).unwrap();
 
     assert_eq!(sf.len().unwrap(), 0);
@@ -171,7 +171,7 @@ fn test_sleep_open() {
     assert_eq!(sf.get_algorithm(), None);
     assert_eq!(sf.get_entry_size(), 1);
 
-    let mut sf = SleepFile::open(
+    let sf = SleepFile::open(
        Path::new("test-data/dat/simple/.dat/metadata.tree"), false).unwrap();
 
     // Calculated from 'dat log'
@@ -187,17 +187,17 @@ fn test_sleep_create() {
     use tempdir::TempDir;
     let tmp_dir = TempDir::new("geniza-test").unwrap();
 
-    let mut sf = SleepFile::create(
+    SleepFile::create(
         &tmp_dir.path().join("empty2.sleep"),
         0x050257FF,
         1,
-        None);
+        None).unwrap();
 
     // TODO: binary diff against 'test-data/sleep/empty/empty.sleep'
 
-    let mut sf = SleepFile::create(
+    SleepFile::create(
         &tmp_dir.path().join("simple_metadata.sleep"),
         0x05025702,
         40,
-        Some("BLAKE2b".into()));
+        Some("BLAKE2b".into())).unwrap();
 }

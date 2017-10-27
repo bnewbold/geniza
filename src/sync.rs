@@ -232,7 +232,7 @@ impl DatConnection {
         dc.tcp.set_nodelay(true)?; // Faster handshake
         // send register
         let mut register_msg = Feed::new();
-        register_msg.set_discoveryKey(dk.to_vec());
+        register_msg.set_discoveryKey(dc.discovery_key.to_vec());
         register_msg.set_nonce((tx_nonce[0..24]).to_vec());
         dc.send_register(&register_msg)?;
 
@@ -246,8 +246,8 @@ impl DatConnection {
 
         // send handshake
         let mut handshake_msg = Handshake::new();
-        handshake_msg.set_live(live);
-        handshake_msg.set_id(local_id.to_vec());
+        handshake_msg.set_live(dc.live);
+        handshake_msg.set_id(dc.id.to_vec());
         dc.send_msg(&DatNetMessage::Handshake(handshake_msg), false)?;
 
         // read handshake
@@ -408,14 +408,12 @@ impl DatConnection {
         self.send_msg(&DatNetMessage::Want(wm), false)?;
 
         // listen for Have
-        let length;
         loop {
             let (was_content, msg) = self.recv_msg()?;
             if was_content {
                 continue;
             }
-            if let DatNetMessage::Have(have) = msg {
-                length = have.get_length();
+            if let DatNetMessage::Have(_) = msg {
                 break;
             } else {
                 info!("Expected Have message, got: {:?}", &msg);

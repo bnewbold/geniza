@@ -276,7 +276,6 @@ impl SleepDirRegister {
         let mut rng = OsRng::new()?;
         rng.fill_bytes(&mut rand_seed);
         let (secret_key, pub_key) = ed25519::keypair(&rand_seed);
-        println!("{:?}", directory.join(Path::new(&(prefix.to_owned() + ".key"))));
         {
             let mut key_file = OpenOptions::new()
                 .write(true)
