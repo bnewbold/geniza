@@ -318,9 +318,10 @@ impl SleepDirRegister {
 
 impl HyperRegister for SleepDirRegister {
 
-    fn has(&self, _index: u64) -> Result<bool> {
-        // looks in bitfield
-        unimplemented!()
+    /// TODO: this version only works for "dense" registers: it just checks if the index is in the
+    /// total length, instead of using the bitfield.
+    fn has(&self, index: u64) -> Result<bool> {
+        return Ok(index < self.len()?);
     }
 
     fn has_all(&self) -> Result<bool> {
@@ -482,9 +483,7 @@ fn test_sdr_open() {
 fn test_sdr_create() {
 
     use tempdir::TempDir;
-
     let tmp_dir = TempDir::new("geniza-test").unwrap();
-
     let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
 
     assert_eq!(sdr.len().unwrap(), 0);
@@ -495,9 +494,7 @@ fn test_sdr_create() {
 fn test_sdr_append() {
 
     use tempdir::TempDir;
-
     let tmp_dir = TempDir::new("geniza-test").unwrap();
-
     let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
 
     sdr.append("hello world!".as_bytes()).unwrap();
@@ -511,4 +508,18 @@ fn test_sdr_append() {
     sdr.check().unwrap();
     assert_eq!(sdr.len().unwrap(), 1+count);
     assert_eq!(sdr.len_bytes().unwrap(), 12 + (count*5));
+}
+
+#[test]
+fn test_sdr_has() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
+
+    sdr.append("hello world!".as_bytes()).unwrap();
+    sdr.check().unwrap();
+    assert_eq!(sdr.has_all().unwrap(), true);
+    assert_eq!(sdr.has(0).unwrap(), true);
+    assert_eq!(sdr.has(40).unwrap(), false);
 }
