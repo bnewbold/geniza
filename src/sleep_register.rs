@@ -78,24 +78,25 @@ impl HyperRegister {
         buf
     }
 
-    pub fn hash_roots(reg: &mut HyperRegister, index: u64) -> Result<Vec<u8>> {
-        let mut buf = [0; 40];
+    /// Hashes all the tree root parents for the given entry index (data index, not tree index).
+    pub fn hash_roots(reg: &mut HyperRegister, entry_index: u64) -> Result<Vec<u8>> {
+        let mut buf = [0; 32];
         let mut hash = Blake2b::new(32);
         let mut index_buf = [0; 8];
         hash.input(&[2; 1]);
-        for ri in HyperRegister::tree_root_nodes(index) {
+        for ri in HyperRegister::tree_root_nodes(entry_index) {
             u64::to_be(ri).encode_fixed(&mut index_buf);
             let node = reg.get_tree_entry(ri)?;
             hash.input(&node[0..32]);
             hash.input(&index_buf);
             hash.input(&node[32..40]);
         }
-        hash.result(&mut buf[0..32]);
+        hash.result(&mut buf);
         Ok(buf.to_vec())
     }
 
+    /// Calculates the root notes for a given length (of data entries, not tree entries)
     fn tree_root_nodes(data_count: u64) -> Vec<u64> {
-        // Calculates the root notes for a given length (of data entries, not tree entries)
         // TODO: this should be an iterator
         // NB: this is a relatively "hot" function, gets called (repeatedly?) on every mutation,
         // and potentially in inner loops of lookups.
@@ -124,11 +125,13 @@ impl HyperRegister {
         roots
     }
 
-    pub fn get_data_offset(reg: &mut HyperRegister, index: u64) -> Result<u64> {
+    /// Finds the offset of the given data chunk in the linear appended data file (not a "checked
+    /// out" individual file)
+    pub fn get_data_offset(reg: &mut HyperRegister, entry_index: u64) -> Result<u64> {
         // TODO: this is a naive (linear) implementation
         // log(N) would go up previous parent nodes (eg, use root_nodes())
         let mut sum: u64 = 0;
-        for i in 0..index {
+        for i in 0..entry_index {
             let leaf = reg.get_tree_entry(i * 2)?;
             sum += u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
         }
@@ -137,29 +140,29 @@ impl HyperRegister {
 
     /// Every node has a parent, so this function won't fail unless index is over 2^62, in which
     /// case it would overflow and panics instead.
-    fn tree_parent_index(index: u64) -> u64 {
+    fn tree_parent_index(tree_index: u64) -> u64 {
         for i in 0..62 {
             // find lowest-significant zero bit
-            if (index & (1 << i)) == 0 {
+            if (tree_index & (1 << i)) == 0 {
                 // set that bit and clear next higher
-                return ((index | (1 << i))) & !(1 << (i + 1));
+                return ((tree_index | (1 << i))) & !(1 << (i + 1));
             }
         }
         panic!("Parent lookup overflowed, huge index!");
     }
 
     /// Calling this on a leaf node is an error, as is calling very high node numbers (> 2^62)
-    fn tree_child_indices(index: u64) -> Result<(u64, u64)> {
-        if index % 2 == 0 {
+    fn tree_child_indices(tree_index: u64) -> Result<(u64, u64)> {
+        if tree_index % 2 == 0 {
             bail!("Leaf tree nodes have no children");
         }
         for i in 0..62 {
             // find lowest-significant zero bit...
-            if (index & (1 << i)) == 0 {
+            if (tree_index & (1 << i)) == 0 {
                 // larger child has this bit high, next lower bit cleared
-                let right = ((index | (1 << i))) & !(1 << (i - 1));
+                let right = ((tree_index | (1 << i))) & !(1 << (i - 1));
                 // smaller child has next lower bit cleared
-                let left = index & !(1 << (i - 1));
+                let left = tree_index & !(1 << (i - 1));
                 return Ok((left, right));
             }
         }
@@ -437,7 +440,7 @@ impl HyperRegister for SleepDirRegister {
         }
 
         // 4. Add signature to signature file
-        let root_hash = HyperRegister::hash_roots(self, index + 1)?;
+        let root_hash = HyperRegister::hash_roots(self, index)?;
         let root_sig = ed25519::signature(&root_hash, &self.secret_key.clone().unwrap());
         self.sign_sleep.append(&root_sig)?;
 
@@ -469,7 +472,32 @@ impl HyperRegister for SleepDirRegister {
     }
 
     fn verify(&mut self) -> Result<()> {
-        unimplemented!()
+        for i in 0..self.len()? {
+
+            if let Some(_) = self.data_file {
+                // 1. Read and hash data
+                let data_chunk = self.get_data_entry(i)?;
+                let leaf_recalc = HyperRegister::hash_leaf(&data_chunk);
+
+                // 2. Check tree leaf hash for this chunk
+                let leaf = self.get_tree_entry(i * 2)?;
+                if leaf.to_vec() != leaf_recalc.to_vec() {
+                    bail!("Data chunk {} failed verification (leaf hash)", i);
+                }
+            } else {
+                warn!("No simple datafile, can't verify hashes");
+            }
+
+            // 3. Recurse up parents, hashing all parents
+            let rehash = HyperRegister::hash_roots(self, i)?;
+
+            // 4. Read and verify signature in file
+            let sig = self.sign_sleep.read(i)?;
+            if !ed25519::verify(&rehash, &self.pub_key, &sig) {
+                bail!("Failed to verify signature for chunk {}", i)
+            }
+        }
+        Ok(())
     }
 
     fn check(&mut self) -> Result<()> {
@@ -532,6 +560,7 @@ fn test_sdr_append() {
 
     sdr.append("hello world!".as_bytes()).unwrap();
     sdr.check().unwrap();
+    sdr.verify().unwrap();
     assert_eq!(sdr.len().unwrap(), 1);
     assert_eq!(sdr.len_bytes().unwrap(), 12);
     let count = 100; // TODO: make this >1000 when things are faster
@@ -539,6 +568,7 @@ fn test_sdr_append() {
         sdr.append(&[1, 2, 3, 4, 5]).unwrap();
     }
     sdr.check().unwrap();
+    sdr.verify().unwrap();
     assert_eq!(sdr.len().unwrap(), 1 + count);
     assert_eq!(sdr.len_bytes().unwrap(), 12 + (count * 5));
 }
