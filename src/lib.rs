@@ -48,5 +48,5 @@ mod sleep_register;
 pub use sleep_register::*;
 mod protocol;
 pub use protocol::*;
-pub mod network_msg;
-pub mod metadata_msg;
+pub mod network_msgs;
+pub mod metadata_msgs;

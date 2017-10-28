@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 // File copied from: https://github.com/mafintosh/hypercore-protocol/blob/master/schema.proto
 // Copyright (c) 2016 Mathias Buus
 // MIT License (MIT)

@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 // File copied from: https://github.com/mafintosh/hyperdrive/blob/master/lib/messages.js
 // Copyright (c) 2015 Mathias Buus
 // MIT License (MIT)
@@ -18,4 +20,14 @@ message Stat {
   optional uint64 byteOffset = 7;
   optional uint64 mtime = 8;
   optional uint64 ctime = 9;
+}
+
+// File copied from: https://github.com/mafintosh/append-tree/blob/master/schema.proto
+// Copyright (c) 2015 Mathias Buus
+// MIT License (MIT)
+
+message Node {
+  required string name = 1;
+  optional bytes value = 2;
+  optional bytes paths = 3;
 }
