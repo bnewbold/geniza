@@ -46,6 +46,8 @@ mod sleep_file;
 pub use sleep_file::*;
 mod sleep_register;
 pub use sleep_register::*;
+mod drive;
+pub use drive::*;
 mod protocol;
 pub use protocol::*;
 pub mod network_msgs;
