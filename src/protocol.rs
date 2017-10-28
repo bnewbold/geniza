@@ -449,7 +449,7 @@ impl DatConnection {
                             .copy_from_slice(&make_discovery_key(data_key)[0..32]);
                         return Ok(());
                     } else {
-                        unimplemented!("non-hyperdrive Index type: {}", index_msg.get_field_type());
+                        bail!("non-hyperdrive Index type: {}", index_msg.get_field_type());
                     }
                 }
             } else {
