@@ -44,7 +44,7 @@ fn run() -> Result<()> {
                 .arg_from_usage("<algo_name> 'Name of algorithm (empty string for none)'"),
         )
         .subcommand(
-            SubCommand::with_name("read-all")
+            SubCommand::with_name("file-read-all")
                 .about("Reads a single SLEEP file, iterates through all entries, prints raw bytes")
                 .arg_from_usage("<FILE> 'SLEEP file to read'"),
         )
