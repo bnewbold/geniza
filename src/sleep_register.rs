@@ -1,7 +1,7 @@
 
 use std::io::prelude::*;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::io::SeekFrom;
 use integer_encoding::FixedInt;
 use std::fs::OpenOptions;
@@ -16,7 +16,7 @@ use sleep_file::*;
 /// Abstract access to Hypercore register
 pub trait HyperRegister {
     /// Whether the register store contains the given (data) entry
-    fn has(&self, index: u64) -> Result<bool>;
+    fn has(&self, entry_index: u64) -> Result<bool>;
 
     /// Whether the register store contains *all* known (data) entries
     fn has_all(&self) -> Result<bool>;
@@ -25,7 +25,7 @@ pub trait HyperRegister {
     fn has_range(&self, start: u64, end: u64) -> Result<bool>;
 
     /// Reads a single data entry from the store.
-    fn get_data_entry(&mut self, index: u64) -> Result<Vec<u8>>;
+    fn get_data_entry(&mut self, entry_index: u64) -> Result<Vec<u8>>;
 
     /// Writes an entry to the store. Requires the private key to be present.
     fn append(&mut self, data: &[u8]) -> Result<u64>;
@@ -47,7 +47,7 @@ pub trait HyperRegister {
     fn writable(&self) -> bool;
 
     /// Returns a single tree entry (using tree indexing, not data indexing).
-    fn get_tree_entry(&mut self, index: u64) -> Result<Vec<u8>>;
+    fn get_tree_entry(&mut self, tree_index: u64) -> Result<Vec<u8>>;
 }
 
 impl HyperRegister {
@@ -225,6 +225,8 @@ pub struct SleepDirRegister {
     // Except, these should be Ed25519 keys, not bytes
     pub_key: Vec<u8>,
     secret_key: Option<Vec<u8>>,
+    path: PathBuf,
+    prefix: String,
 }
 
 fn read_key_file(path: &Path, is_secret: bool) -> Result<Vec<u8>> {
@@ -234,10 +236,10 @@ fn read_key_file(path: &Path, is_secret: bool) -> Result<Vec<u8>> {
     key_file.read_to_end(&mut key)?;
     if key.len() != expected {
         bail!(
-            "Bad key file (len {} != {}): {:?}",
+            "Bad key file (len {} != {}): {}",
             key.len(),
             expected,
-            path
+            path.display()
         );
     }
     Ok(key)
@@ -247,10 +249,10 @@ fn write_key_file(path: &Path, key: &[u8], is_secret: bool) -> Result<()> {
     let expected = if is_secret { 64 } else { 32 };
     if key.len() != expected {
         bail!(
-            "Bad key file (len {} != {}): {:?}",
+            "Bad key file (len {} != {}): {}",
             key.len(),
             expected,
-            path
+            path.display()
         );
     }
     let mut key_file = OpenOptions::new().write(true).create_new(true).open(path)?;
@@ -280,6 +282,7 @@ impl SleepDirRegister {
                 .write(writable)
                 .open(data_path)?)
         } else {
+            warn!("SleepDirRegister data file not found: {}", data_path.display());
             None
         };
         let tree_sleep = SleepFile::open(
@@ -301,6 +304,8 @@ impl SleepDirRegister {
             data_file,
             pub_key,
             secret_key,
+            path: directory.to_path_buf(),
+            prefix: prefix.to_string(),
         };
         sf.check()?;
         Ok(sf)
@@ -352,6 +357,8 @@ impl SleepDirRegister {
             data_file: Some(data_file),
             pub_key: pub_key.to_vec(),
             secret_key: Some(secret_key.to_vec()),
+            path: directory.to_path_buf(),
+            prefix: prefix.to_string(),
         };
         sf.check()?;
         Ok(sf)
@@ -361,8 +368,8 @@ impl SleepDirRegister {
 impl HyperRegister for SleepDirRegister {
     /// TODO: this version only works for "dense" registers: it just checks if the index is in the
     /// total length, instead of using the bitfield.
-    fn has(&self, index: u64) -> Result<bool> {
-        return Ok(index < self.len()?);
+    fn has(&self, entry_index: u64) -> Result<bool> {
+        return Ok(entry_index < self.len()?);
     }
 
     fn has_all(&self) -> Result<bool> {
@@ -392,7 +399,7 @@ impl HyperRegister for SleepDirRegister {
         let data_file = if let Some(ref mut df) = self.data_file {
             df
         } else {
-            bail!("No data file in this register");
+            bail!("No data file in this register (dir={} prefix={})", self.path.display(), self.prefix);
         };
         let leaf = self.tree_sleep.read(index * 2)?;
         let data_len = u64::from_be(FixedInt::decode_fixed(&leaf[32..40]));
@@ -408,8 +415,8 @@ impl HyperRegister for SleepDirRegister {
         Ok(data)
     }
 
-    fn get_tree_entry(&mut self, index: u64) -> Result<Vec<u8>> {
-        self.tree_sleep.read(index)
+    fn get_tree_entry(&mut self, tree_index: u64) -> Result<Vec<u8>> {
+        self.tree_sleep.read(tree_index)
     }
 
     fn append(&mut self, data: &[u8]) -> Result<u64> {
@@ -513,7 +520,8 @@ impl HyperRegister for SleepDirRegister {
         if let Some(ref df) = self.data_file {
             let file_size = df.metadata()?.len();
             if file_size != computed {
-                bail!("Computed vs. data file size mismatch");
+                bail!("Computed vs. data file size mismatch ({} != {}; path={} prefix={})",
+                    computed, file_size, self.path.display(), self.prefix);
             }
         }
         Ok(())
