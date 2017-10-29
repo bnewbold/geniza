@@ -538,6 +538,8 @@ fn test_sdr_open() {
         SleepDirRegister::open(Path::new("test-data/dat/simple/.dat/"), "metadata", false).unwrap();
 
     // Values from 'dat log'
+    assert!(sdr.check().is_ok());
+    // XXX: assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 3);
     assert_eq!(sdr.len_bytes().unwrap(), 145);
 
@@ -545,6 +547,8 @@ fn test_sdr_open() {
         SleepDirRegister::open(Path::new("test-data/dat/simple/.dat/"), "content", false).unwrap();
 
     // Values from 'dat log'
+    assert!(sdr.check().is_ok());
+    // XXX: assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 2);
     assert_eq!(sdr.len_bytes().unwrap(), 204);
 }
@@ -566,16 +570,16 @@ fn test_sdr_append() {
     let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
 
     sdr.append("hello world!".as_bytes()).unwrap();
-    sdr.check().unwrap();
-    sdr.verify().unwrap();
+    assert!(sdr.check().is_ok());
+    assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 1);
     assert_eq!(sdr.len_bytes().unwrap(), 12);
     let count = 100; // TODO: make this >1000 when things are faster
     for _ in 0..count {
         sdr.append(&[1, 2, 3, 4, 5]).unwrap();
     }
-    sdr.check().unwrap();
-    sdr.verify().unwrap();
+    assert!(sdr.check().is_ok());
+    assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 1 + count);
     assert_eq!(sdr.len_bytes().unwrap(), 12 + (count * 5));
 }
@@ -587,7 +591,7 @@ fn test_sdr_has() {
     let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
 
     sdr.append("hello world!".as_bytes()).unwrap();
-    sdr.check().unwrap();
+    assert!(sdr.check().is_ok());
     assert_eq!(sdr.has_all().unwrap(), true);
     assert_eq!(sdr.has(0).unwrap(), true);
     assert_eq!(sdr.has(40).unwrap(), false);
