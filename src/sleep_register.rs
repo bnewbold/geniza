@@ -274,8 +274,7 @@ impl SleepDirRegister {
                 true,
             )?);
         }
-        let data_path = &(prefix.to_owned() + ".data");
-        let data_path = Path::new(data_path);
+        let data_path = &directory.join(Path::new(&(prefix.to_owned() + ".data")));
         let data_file = if data_path.is_file() {
             Some(OpenOptions::new()
                 .read(true)
