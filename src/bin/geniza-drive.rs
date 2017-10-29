@@ -55,7 +55,19 @@ fn run() -> Result<()> {
         ("log", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;
             for entry in drive.history(1) {
-                println!("{:?}", entry?);
+                let entry = entry?;
+                if let Some(stat) = entry.stat {
+                    if stat.get_blocks() == 0 {
+                        println!("{}\t[chg]  {}",
+                            entry.index, entry.path.display());
+                    } else {
+                        println!("{}\t[put]  {}\t{} bytes ({} blocks)",
+                            entry.index, entry.path.display(), stat.get_size(), stat.get_blocks());
+                    }
+                } else {
+                    println!("{}\t[del]  {}",
+                        entry.index, entry.path.display());
+                }
             }
         }
         _ => {

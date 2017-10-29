@@ -1,6 +1,6 @@
 
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 //XXX: use protobuf::Message;
 use protobuf::parse_from_bytes;
 
@@ -119,8 +119,9 @@ fn test_dd_create() {
 // TODO: unpack Node into a pub struct
 #[derive(Debug)]
 pub struct DriveEntry {
-    node: Node,
-    index: u64,
+    pub index: u64,
+    pub path: PathBuf,
+    pub stat: Option<Stat>,
 }
 
 /// Iterator over full drive history (file additions/deletions).
@@ -144,9 +145,14 @@ impl<'a> Iterator for DriveHistory<'a> {
             Err(e) => { return Some(Err(e.into())) },
             Ok(v) => v,
         };
+        let stat = match node.has_value() {
+            true => Some(parse_from_bytes::<Stat>(&node.get_value()).unwrap()),
+            false => None,
+        };
         let de = Ok(DriveEntry {
-            node,
             index: self.current,
+            path: PathBuf::from(node.get_name()),
+            stat: stat,
         });
         self.current += 1;
         return Some(de);
