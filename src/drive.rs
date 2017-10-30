@@ -171,6 +171,14 @@ fn test_dd_open() {
     assert_eq!(dd.history(0).count(), 2);
     assert_eq!(dd.read_dir("/").count(), 1);
     assert_eq!(dd.read_dir_recursive("/").count(), 1);
+
+    let mut dd =
+        DatDrive::open(Path::new("test-data/dat/tree/.dat/"), false).unwrap();
+
+    // verified from dat log
+    assert_eq!(dd.history(0).count(), 8);
+    // XXX: assert_eq!(dd.read_dir("/").count(), 2);
+    // XXX: assert_eq!(dd.read_dir_recursive("/").count(), 6);
 }
 
 #[test]
