@@ -12,6 +12,7 @@ use rand::{OsRng, Rng};
 
 use errors::*;
 use sleep_file::*;
+use protocol::make_discovery_key;
 
 /// Abstract access to Hypercore register
 pub trait HyperRegister {
@@ -361,6 +362,10 @@ impl SleepDirRegister {
         };
         sf.check()?;
         Ok(sf)
+    }
+
+    pub fn discovery_key(&self) -> Vec<u8> {
+        make_discovery_key(&self.pub_key)
     }
 }
 
