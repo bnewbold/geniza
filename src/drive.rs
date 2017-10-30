@@ -1,12 +1,13 @@
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
-//XXX: use protobuf::Message;
+use protobuf::Message;
 use protobuf::parse_from_bytes;
+use integer_encoding::VarInt;
 
 use errors::*;
 use sleep_register::*;
-use metadata_msgs::{Stat, Node};
+use metadata_msgs::{Index, Stat, Node};
 
 /// "Sort of" follows rust std::fs API for file system access.
 pub struct DatDrive {
@@ -19,8 +20,18 @@ impl DatDrive {
     /// Instantiates a drive in the given directory. Path should be the complete path (eg, ending
     /// in '/.dat/'), not an enclosing directory containing files.
     pub fn create<P: AsRef<Path>>(path: P) -> Result<DatDrive> {
+        let mut metadata = SleepDirRegister::create(path.as_ref(), "metadata")?;
+        let content = SleepDirRegister::create(path.as_ref(), "content")?;
         // Calculate content discovery key and write as Index entry in metadata register
-        unimplemented!()
+        let dk = metadata.discovery_key();
+        let mut index = Index::new();
+        index.set_field_type("hyperdrive".into());
+        index.set_content(dk);
+        metadata.append(&index.write_to_bytes()?)?;
+        Ok(DatDrive {
+            metadata,
+            content,
+        })
     }
 
     /// Path should be the complete path (eg, ending in '/.dat/'), not an enclosing directory
@@ -38,27 +49,84 @@ impl DatDrive {
     }
 }
 
+fn decode_children(raw: &[u8]) -> Result<Vec<Vec<u64>>> {
+    let mut children = vec![];
+    let mut offset = 0; // byte offset that we have read up to
+    while offset < raw.len() {
+        trace!("offset={} len={}", offset, raw.len());
+        let mut sub = vec![];
+        // decode_var() returns a varint value and the bytes read
+        let (sub_len, inc): (u64, usize) = VarInt::decode_var(&raw[offset..]);
+        //trace!("sub_len={} inc={}", sub_len, inc);
+        trace!("VARINT: {}", sub_len);
+        offset += inc;
+        let mut run = 0;
+        for _ in 0..sub_len {
+            let (var, inc): (u64, usize) = VarInt::decode_var(&raw[offset..]);
+            trace!("VARINT: {}", var);
+            run += var;
+            offset += inc;
+            sub.push(run);
+        }
+        children.push(sub);
+    }
+    trace!("decoded children: {:?}", children);
+    Ok(children)
+}
+
 impl<'a> DatDrive {
 
-    fn find_path(path: &Path) -> Result<u64> {
-        unimplemented!()
+    fn entry_count(&mut self) -> Result<u64> {
+        Ok(self.metadata.len()? - 1)
+    }
+
+    fn get_dir_entry(&mut self, entry_index: u64) -> Result<DriveEntry> {
+        trace!("fetching drive entry {} (of {})", entry_index, self.entry_count()?);
+        let data = self.metadata.get_data_entry(entry_index+1)?;
+        let node = parse_from_bytes::<Node>(&data)?;
+        let stat = match node.has_value() {
+            true => Some(parse_from_bytes::<Stat>(&node.get_value())?),
+            false => None,
+        };
+
+        let children = decode_children(node.get_paths())?;
+
+        Ok(DriveEntry {
+            index: entry_index,
+            path: PathBuf::from(node.get_name()),
+            stat: stat,
+            children,
+        })
+    }
+
+    fn get_nearest<P: AsRef<Path>>(&mut self, _path: P) -> Result<DriveEntry> {
+        // 0. if register is empty, bail out early
+        let len = self.entry_count()?;
+        if len <= 0 {
+            bail!("Expected at least one entry, but drive is empty")
+        }
+
+        // 1. get most recent entry (tail of register)
+        return self.get_dir_entry(len-2);
+
+        // XXX: unimplemented!()
     }
 
     pub fn history<'b>(&'b mut self, start: u64) -> DriveHistory<'b> {
-        // Start must be at least 1; index 0 is the Index item
-        let start = if start == 0 { 1 } else { start };
         DriveHistory {
             drive: self,
             current: start,
         }
     }
 
-    pub fn read_dir_recursive<P: AsRef<Path>>(&mut self, path: P) -> ReadDriveDir<'a> {
-        unimplemented!()
+    pub fn read_dir_recursive<'b, P: AsRef<Path>>(&'b mut self, path: P) -> ReadDriveDir<'b> {
+        // TODO: pass a single error if there is an error?
+        ReadDriveDir::init(self, path, true).unwrap()
     }
 
-    pub fn read_dir<P: AsRef<Path>>(&mut self, path: P) -> ReadDriveDir<'a> {
-        unimplemented!()
+    pub fn read_dir<'b, P: AsRef<Path>>(&'b mut self, path: P) -> ReadDriveDir<'b> {
+        // TODO: pass a single error if there is an error?
+        ReadDriveDir::init(self, path, false).unwrap()
     }
 
     pub fn file_metadata<P: AsRef<Path>>(&mut self, _path: P) -> Result<Stat> {
@@ -100,7 +168,7 @@ fn test_dd_open() {
         DatDrive::open(Path::new("test-data/dat/simple/.dat/"), false).unwrap();
 
     // verified from dat log
-    assert_eq!(dd.history(1).count(), 2);
+    assert_eq!(dd.history(0).count(), 2);
     assert_eq!(dd.read_dir("/").count(), 1);
     assert_eq!(dd.read_dir_recursive("/").count(), 1);
 }
@@ -111,7 +179,7 @@ fn test_dd_create() {
     let tmp_dir = TempDir::new("geniza-test").unwrap();
     let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
 
-    assert_eq!(dd.history(1).count(), 0);
+    assert_eq!(dd.history(0).count(), 0);
     assert_eq!(dd.read_dir("/").count(), 0);
     assert_eq!(dd.read_dir_recursive("/").count(), 0);
 }
@@ -122,6 +190,7 @@ pub struct DriveEntry {
     pub index: u64,
     pub path: PathBuf,
     pub stat: Option<Stat>,
+    pub children: Vec<Vec<u64>>,
 }
 
 /// Iterator over full drive history (file additions/deletions).
@@ -133,27 +202,10 @@ pub struct DriveHistory<'a> {
 impl<'a> Iterator for DriveHistory<'a> {
     type Item = Result<DriveEntry>;
     fn next(&mut self) -> Option<Result<DriveEntry>> {
-        if self.current >= self.drive.metadata.len().unwrap() {
+        if self.current >= self.drive.entry_count().unwrap() {
             return None;
         }
-        // TODO: handle Err, not unwrap
-        let data = match self.drive.metadata.get_data_entry(self.current) {
-            Err(e) => { return Some(Err(e)) },
-            Ok(v) => v,
-        };
-        let node = match parse_from_bytes::<Node>(&data) {
-            Err(e) => { return Some(Err(e.into())) },
-            Ok(v) => v,
-        };
-        let stat = match node.has_value() {
-            true => Some(parse_from_bytes::<Stat>(&node.get_value()).unwrap()),
-            false => None,
-        };
-        let de = Ok(DriveEntry {
-            index: self.current,
-            path: PathBuf::from(node.get_name()),
-            stat: stat,
-        });
+        let de = self.drive.get_dir_entry(self.current);
         self.current += 1;
         return Some(de);
     }
@@ -169,22 +221,44 @@ pub struct ReadDriveDir<'a> {
 }
 
 impl<'a> ReadDriveDir<'a> {
-    fn init<P: AsRef<Path>>(drive: &mut DatDrive, path: P, recursive: bool) {
-        unimplemented!();
-        // TODO: starting from the last data entry, recurse up to nearest directory, then recurse
-        // down to base path
-        //ReadDriveDir {
-        //    drive,
-        //    recursive,
-        //    entries: vec![],
-        //}
+    fn init<P: AsRef<Path>>(drive: &mut DatDrive, path: P, recursive: bool) -> Result<ReadDriveDir> {
+
+        let entries = if drive.entry_count()? == 0 {
+            vec![]
+        } else {
+            let nearest = drive.get_nearest(path)?;
+            // TODO: starting from the last data entry, recurse up to nearest directory, then recurse
+            // down to base path
+            let mut entries = vec![];
+            /* XXX:
+            if nearest.stat.is_some() {
+                // XXX: mapping fixer
+                entries.push(nearest.index - 1);
+            }
+            */
+            // XXX: flatten entries, not really the right thing to do
+            for mut sub in nearest.children {
+                entries.append(&mut sub);
+            }
+            entries
+        };
+        Ok(ReadDriveDir {
+            drive,
+            recursive,
+            entries: entries,
+        })
     }
 }
 
 impl<'a> Iterator for ReadDriveDir<'a> {
-    type Item = DriveEntry;
-    fn next(&mut self) -> Option<DriveEntry> {
-        unimplemented!();
+    type Item = Result<DriveEntry>;
+    fn next(&mut self) -> Option<Result<DriveEntry>> {
+        // TODO: actually recurse
+        match self.entries.pop() {
+            None => None,
+            // XXX: +1 here is to skip the initial header
+            Some(this_index) => Some(self.drive.get_dir_entry(this_index))
+        }
     }
 }
 

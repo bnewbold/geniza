@@ -51,10 +51,15 @@ fn run() -> Result<()> {
     let dir = Path::new(matches.value_of("dat-dir").unwrap());
     match matches.subcommand() {
         ("ls", Some(_subm)) => {
+            let mut drive = DatDrive::open(dir, false)?;
+            for entry in drive.read_dir_recursive("/") {
+                let entry = entry?;
+                println!("{}", entry.path.display());
+            }
         }
         ("log", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;
-            for entry in drive.history(1) {
+            for entry in drive.history(0) {
                 let entry = entry?;
                 if let Some(stat) = entry.stat {
                     if stat.get_blocks() == 0 {
