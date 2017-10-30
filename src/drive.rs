@@ -26,14 +26,14 @@ impl DatDrive {
     /// Path should be the complete path (eg, ending in '/.dat/'), not an enclosing directory
     /// containing files.
     pub fn open<P: AsRef<Path>>(path: P, writable: bool) -> Result<DatDrive> {
-        let mdrive = SleepDirRegister::open(path.as_ref(), "metadata", writable)?;
-        if mdrive.len()? == 0 {
+        let metadata = SleepDirRegister::open(path.as_ref(), "metadata", writable)?;
+        if metadata.len()? == 0 {
             bail!("Expected at least one entry (Index) in metadata register");
         }
-        let cdrive = SleepDirRegister::open(path.as_ref(), "content", writable)?;
+        let content = SleepDirRegister::open(path.as_ref(), "content", writable)?;
         Ok(DatDrive {
-            metadata: mdrive,
-            content: cdrive,
+            metadata,
+            content,
         })
     }
 }
@@ -61,26 +61,26 @@ impl<'a> DatDrive {
         unimplemented!()
     }
 
-    pub fn file_metadata<P: AsRef<Path>>(&mut self, path: P) -> Result<Stat> {
+    pub fn file_metadata<P: AsRef<Path>>(&mut self, _path: P) -> Result<Stat> {
         unimplemented!()
     }
 
-    pub fn create_file_bytes<P: AsRef<Path>>(&mut self, path: P, stat: &Stat, data: &[u8]) -> Result<()> {
+    pub fn create_file_bytes<P: AsRef<Path>>(&mut self, _path: P, _stat: &Stat, _data: &[u8]) -> Result<()> {
         unimplemented!()
     }
 
-    pub fn create_file<P: AsRef<Path>, R: Read>(&mut self, path: P, stat: &Stat, source: R) -> Result<()> {
+    pub fn create_file<P: AsRef<Path>, R: Read>(&mut self, _path: P, _stat: &Stat, _source: R) -> Result<()> {
         unimplemented!()
     }
 
     /// Copies Stat metadata and all content from a file in the "real" filesystem into the
     /// DatDrive.
-    pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
+    pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, _source: P, _dest: Q) -> Result<()> {
         unimplemented!()
     }
 
     /// Copies a file from the drive to the "real" filesystem, preserving Stat metadata.
-    pub fn export_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
+    pub fn export_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, _source: P, _dest: Q) -> Result<()> {
         unimplemented!()
     }
 

@@ -130,7 +130,8 @@ fn test_bsxii_continued() {
     assert_eq!(a, c);
 }
 
-fn make_discovery_key(key: &[u8]) -> Vec<u8> {
+// TODO: move to lib.rs?
+pub fn make_discovery_key(key: &[u8]) -> Vec<u8> {
     // calculate discovery key
     let mut discovery_key = [0; 32];
     let mut hash = Blake2b::new_keyed(32, key);
