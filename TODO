@@ -1,16 +1,12 @@
 
 next:
-- fix append bug
-- non-sparse 'has'/'has_all' implementations
-x appending to register (sans bitfield)
+- worked (manual) example of signature generation with 3x nodes
 - verifying register (sans bitfield)
-- reading/writing secret key for register
 - bitfield stuff (un-indexed)
     https://docs.rs/bit_field/0.8.0/bit_field/trait.BitArray
-x protobuf infra
-- basic drive trait
-- 'drive log' command (shows actions)
+- appending to drive
 - network infra
+- secret_key-in-home helpers (read/write)
 - 'geniza clone' command
 - 'geniza checkout' command
 - 'geniza init', 'geniza commit' commands
@@ -18,18 +14,16 @@ x protobuf infra
 - API to link and run from, eg, python
 
 meta:
-- license
-- rustfmt
 - travis tests (linux, osx)
 
 misc:
-- man
-- slog for logging
 
 specific tests:
 - sleep info a variety of bad sleep files, should error
 - sleep create a known file, should be same as empty (also a "Rot13" algo file)
 - create a register, binary compare against known-good
+- test vectors of leaf, parent, and root hashes
+- test vectors of signatures
 
 APIs:
 - trait: register
@@ -50,6 +44,8 @@ geniza: command line, swarm
 
 
 Backburner:
+- man
+- slog for logging
 - disable sodiumoxide serde feature
 - sodiumoxcide static link
     https://safenetforum.org/t/building-a-non-dynamically-linked-executable-of-safe-vault/9811/6
