@@ -31,6 +31,13 @@ fn run() -> Result<()> {
                 .arg_from_usage("<prefix> 'prefix for each data file'"),
         )
         .subcommand(
+            SubCommand::with_name("chunk")
+                .about("Dumps raw data for a single given chunk from a register (by index)")
+                .arg_from_usage("<DIR> 'directory containing files'")
+                .arg_from_usage("<prefix> 'prefix for each data file'")
+                .arg_from_usage("<index> 'index of the data chunk to dump'"),
+        )
+        .subcommand(
             SubCommand::with_name("file-info")
                 .about("Reads a single SLEEP file and shows some basic metadata")
                 .arg_from_usage("<FILE> 'SLEEP file to read'"),
@@ -47,6 +54,18 @@ fn run() -> Result<()> {
             SubCommand::with_name("file-read-all")
                 .about("Reads a single SLEEP file, iterates through all entries, prints raw bytes")
                 .arg_from_usage("<FILE> 'SLEEP file to read'"),
+        )
+        .subcommand(
+            SubCommand::with_name("file-chunk")
+                .about("Dumps raw data for a single given chunk from a SLEEP file (by index)")
+                .arg_from_usage("<FILE> 'SLEEP file to read'")
+                .arg_from_usage("<index> 'index of the data chunk to dump'"),
+        )
+        .subcommand(
+            SubCommand::with_name("write-example-alphabet")
+                .about("Creates a content register in the given folder, with example data added")
+                .arg_from_usage("<DIR> 'directory containing files'")
+                .arg_from_usage("<prefix> 'prefix for each data file'")
         )
         .get_matches();
 
@@ -65,6 +84,14 @@ fn run() -> Result<()> {
             let prefix = subm.value_of("prefix").unwrap();
             SleepDirRegister::create(dir, prefix)?;
             println!("Done!");
+        }
+        ("chunk", Some(subm)) => {
+            let dir = Path::new(subm.value_of("DIR").unwrap());
+            let prefix = subm.value_of("prefix").unwrap();
+            let index = value_t_or_exit!(subm, "index", u64);
+            let mut sdr = SleepDirRegister::open(dir, prefix, false)?;
+            //debug!(println!("{:?}", sdr));
+            println!("{:?}", sdr.get_data_entry(index)?);
         }
         ("file-info", Some(subm)) => {
             let path = Path::new(subm.value_of("FILE").unwrap());
@@ -100,6 +127,25 @@ fn run() -> Result<()> {
             for i in 0..sf.len()? {
                 println!("{}: {:?}", i, sf.read(i));
             }
+        }
+        ("file-chunk", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let index = value_t_or_exit!(subm, "index", u64);
+            let mut sf = SleepFile::open(path, false)?;
+            //debug!(println!("{:?}", sdr));
+            println!("{:?}", sf.read(index)?);
+        }
+        ("write-example-alphabet", Some(subm)) => {
+            let dir = Path::new(subm.value_of("DIR").unwrap());
+            let prefix = subm.value_of("prefix").unwrap();
+            let mut sdr = SleepDirRegister::create(dir, prefix)?;
+            sdr.append(&[0x61; 1])?; // a
+            sdr.append(&[0x62; 1])?; // b
+            sdr.append(&[0x63; 1])?; // c
+            sdr.append(&[0x64; 1])?; // d
+            sdr.append(&[0x65; 1])?; // e
+            sdr.append(&[0x66; 1])?; // f
+            println!("Done!");
         }
         _ => {
             println!("Missing or unimplemented command!");
