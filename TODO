@@ -1,11 +1,9 @@
 
 next:
-- worked (manual) example of signature generation with 3x nodes
-- verifying register (sans bitfield)
+- file check in/out
+- drive children/tree stuff
 - bitfield stuff (un-indexed)
     https://docs.rs/bit_field/0.8.0/bit_field/trait.BitArray
-- appending to drive
-- network infra
 - secret_key-in-home helpers (read/write)
 - 'geniza clone' command
 - 'geniza checkout' command
@@ -44,15 +42,14 @@ geniza: command line, swarm
 
 
 Backburner:
-- man
+- manpage
 - slog for logging
 - disable sodiumoxide serde feature
-- sodiumoxcide static link
+- sodiumoxide static link
     https://safenetforum.org/t/building-a-non-dynamically-linked-executable-of-safe-vault/9811/6
 - SLEEP API: should just be empty string for algo-name, not Option<>
 - I have the SLEEP/register naming wrong... sleep refers to the directory?
-- refactor to something pwrite based for file I/O
-    https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html
+- portable positional file I/O
     https://github.com/vasi/positioned-io
 - mmap
     https://docs.rs/scroll/0.7.0/scroll/
@@ -63,3 +60,4 @@ Backburner:
 - refactor key generation into generic/re-usable function
 - turn magic numbers in tree nodes into declared (public?) constants
 - root_nodes as an iterator? (vs returning a Vec)
+- pretty terminal output: https://crates.io/crates/colored

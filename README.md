@@ -9,7 +9,7 @@
 
 this is a poor / partial / non-compliant dat implementation in rust.
 
-it will eat-your-data.
+it will eat-your-data!
 
 ### Status
 
@@ -18,10 +18,10 @@ it will eat-your-data.
 - [ ] SLEEP v2 files and registers
     - [x] read/write file headers
     - [x] read/write file chunks as raw bytes
-    - [ ] pread/pwrite file chunks without seeking
+    - [x] pread/pwrite file chunks without seeking
     - [x] read data entries by index
     - [x] append data entries
-    - [ ] verify entire register (signatures and merkel tree)
+    - [x] verify entire register (signatures and merkel tree)
     - [ ] bitfields
 - [ ] Drive metadata and files
     - [x] read full history ("log")
@@ -54,6 +54,7 @@ A few simplifications were made compared to the regular dat client:
 - Tracking of remote node state (bitfields) is minimized as much as possible.
 - Almost everything is synchronous and single-threaded, so only a single remote
   node connection at a time is allowed.
+- discovery (DHT, multicast-DNS, etc) is not implemented.
 
 ### Dependencies
 
@@ -62,7 +63,6 @@ Notable Rust Libraries:
 - `sodiumoxide` signing (Ed25519) and network stream encryption (XSalsa20)
 - `integer-encoding` for simple "varints"
 - `rust-protobuf` for protobuf messages
-- ??? for Kademlia Mainline DHT
 
 While (temporarily?) using Cargo's `[patch]` feature to patch sodiumoxide,
 builds require Rust 1.21 (stable circa Oct 2017).
