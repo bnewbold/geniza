@@ -74,8 +74,8 @@ impl HyperRegister {
         let mut hash = Blake2b::new(32);
         hash.input(&[1; 1]);
         hash.input(&buf[32..40]);
-        hash.input(&lhash[..]);
-        hash.input(&rhash[..]);
+        hash.input(&lhash[0..32]);
+        hash.input(&rhash[0..32]);
         hash.result(&mut buf[0..32]);
         buf
     }
@@ -165,6 +165,7 @@ impl HyperRegister {
                 let right = ((tree_index | (1 << i))) & !(1 << (i - 1));
                 // smaller child has next lower bit cleared
                 let left = tree_index & !(1 << (i - 1));
+                assert!(left < right);
                 return Ok((left, right));
             }
         }
@@ -206,7 +207,6 @@ fn test_tree_child_indices() {
     assert!(HyperRegister::tree_child_indices(0).is_err());
     assert!(HyperRegister::tree_child_indices(1024).is_err());
     assert_eq!(HyperRegister::tree_child_indices(1).unwrap(), (0, 2));
-
     assert_eq!(HyperRegister::tree_child_indices(3).unwrap(), (1, 5));
     assert_eq!(HyperRegister::tree_child_indices(5).unwrap(), (4, 6));
     assert_eq!(HyperRegister::tree_child_indices(7).unwrap(), (3, 11));
