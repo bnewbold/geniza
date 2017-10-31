@@ -39,7 +39,7 @@ pub trait HyperRegister {
     /// Total size of this register in bytes.
     fn len_bytes(&mut self) -> Result<u64>;
 
-    /// [UNIMPLEMENTED] Intended to do a deeper merkel-tree verification of all stored data
+    /// Intended to do a deeper merkel-tree verification of all stored data
     fn verify(&mut self) -> Result<()>;
 
     /// Quick sanity checks on register store robust-ness
@@ -86,7 +86,7 @@ impl HyperRegister {
         let mut hash = Blake2b::new(32);
         let mut index_buf = [0; 8];
         hash.input(&[2; 1]);
-        for ri in HyperRegister::tree_root_nodes(entry_index) {
+        for ri in HyperRegister::tree_root_nodes(entry_index + 1) {
             u64::to_be(ri).encode_fixed(&mut index_buf);
             let node = reg.get_tree_entry(ri)?;
             hash.input(&node[0..32]);
@@ -542,12 +542,13 @@ impl HyperRegister for SleepDirRegister {
 
 #[test]
 fn test_sdr_open() {
+
     let mut sdr =
         SleepDirRegister::open(Path::new("test-data/dat/simple/.dat/"), "metadata", false).unwrap();
 
     // Values from 'dat log'
     assert!(sdr.check().is_ok());
-    // XXX: assert!(sdr.verify().is_ok());
+    assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 3);
     assert_eq!(sdr.len_bytes().unwrap(), 145);
 
@@ -556,9 +557,28 @@ fn test_sdr_open() {
 
     // Values from 'dat log'
     assert!(sdr.check().is_ok());
-    // XXX: assert!(sdr.verify().is_ok());
+    assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 2);
     assert_eq!(sdr.len_bytes().unwrap(), 204);
+
+    let mut sdr =
+        SleepDirRegister::open(Path::new("test-data/dat/alphabet/.dat/"), "metadata", false).unwrap();
+
+    // Values from 'dat log'
+    assert!(sdr.check().is_ok());
+    assert!(sdr.verify().is_ok());
+    assert_eq!(sdr.len().unwrap(), 7);
+    assert_eq!(sdr.len_bytes().unwrap(), 307);
+
+    let mut sdr =
+        SleepDirRegister::open(Path::new("test-data/dat/alphabet/.dat/"), "content", false).unwrap();
+
+    // Values from 'dat log'
+    assert!(sdr.check().is_ok());
+    assert!(sdr.verify().is_ok());
+    assert_eq!(sdr.len().unwrap(), 6);
+    assert_eq!(sdr.len_bytes().unwrap(), 6);
+
 }
 
 #[test]
