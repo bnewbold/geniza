@@ -38,6 +38,12 @@ fn run() -> Result<()> {
                 .arg_from_usage("<index> 'index of the data chunk to dump'"),
         )
         .subcommand(
+            SubCommand::with_name("verify")
+                .about("Verifies the given register")
+                .arg_from_usage("<DIR> 'directory containing files'")
+                .arg_from_usage("<prefix> 'prefix for each data file'")
+        )
+        .subcommand(
             SubCommand::with_name("file-info")
                 .about("Reads a single SLEEP file and shows some basic metadata")
                 .arg_from_usage("<FILE> 'SLEEP file to read'"),
@@ -75,7 +81,6 @@ fn run() -> Result<()> {
             let dir = Path::new(subm.value_of("DIR").unwrap());
             let prefix = subm.value_of("prefix").unwrap();
             let mut sdr = SleepDirRegister::open(dir, prefix, false)?;
-            //debug!(println!("{:?}", sdr));
             println!("Entry count: {}", sdr.len()?);
             println!("Total size (bytes): {}", sdr.len_bytes()?);
         }
@@ -90,13 +95,17 @@ fn run() -> Result<()> {
             let prefix = subm.value_of("prefix").unwrap();
             let index = value_t_or_exit!(subm, "index", u64);
             let mut sdr = SleepDirRegister::open(dir, prefix, false)?;
-            //debug!(println!("{:?}", sdr));
             println!("{:?}", sdr.get_data_entry(index)?);
+        }
+        ("verify", Some(subm)) => {
+            let dir = Path::new(subm.value_of("DIR").unwrap());
+            let prefix = subm.value_of("prefix").unwrap();
+            let mut sdr = SleepDirRegister::open(dir, prefix, false)?;
+            println!("{:?}", sdr.verify());
         }
         ("file-info", Some(subm)) => {
             let path = Path::new(subm.value_of("FILE").unwrap());
             let sf = SleepFile::open(path, false)?;
-            //debug!(println!("{:?}", sf));
             println!("Magic: 0x{:X}", sf.get_magic());
             println!(
                 "Algorithm: '{}'",
