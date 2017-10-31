@@ -17,9 +17,9 @@ use metadata_msgs::Index;
 
 #[derive(Debug)]
 pub enum DatNetMessage {
-    Register(Feed),
+    Feed(Feed),
     Handshake(Handshake),
-    Status(Info),
+    Info(Info),
     Have(Have),
     Unhave(Unhave),
     Want(Want),
@@ -31,9 +31,9 @@ pub enum DatNetMessage {
 
 fn msg_code(msg: &DatNetMessage) -> u8 {
     match msg {
-        &DatNetMessage::Register(_) => 0,
+        &DatNetMessage::Feed(_) => 0,
         &DatNetMessage::Handshake(_) => 1,
-        &DatNetMessage::Status(_) => 2,
+        &DatNetMessage::Info(_) => 2,
         &DatNetMessage::Have(_) => 3,
         &DatNetMessage::Unhave(_) => 4,
         &DatNetMessage::Want(_) => 5,
@@ -46,9 +46,9 @@ fn msg_code(msg: &DatNetMessage) -> u8 {
 
 fn msg_sugar(msg: &DatNetMessage) -> &Message {
     match msg {
-        &DatNetMessage::Register(ref m) => m,
+        &DatNetMessage::Feed(ref m) => m,
         &DatNetMessage::Handshake(ref m) => m,
-        &DatNetMessage::Status(ref m) => m,
+        &DatNetMessage::Info(ref m) => m,
         &DatNetMessage::Have(ref m) => m,
         &DatNetMessage::Unhave(ref m) => m,
         &DatNetMessage::Want(ref m) => m,
@@ -221,15 +221,15 @@ impl DatConnection {
             rx_offset: 0,
         };
 
-        // Exchange register/feed
+        // Exchange feed
         dc.tcp.set_nodelay(true)?; // Faster handshake
-        let mut register_msg = Feed::new();
-        register_msg.set_discoveryKey(dc.discovery_key.to_vec());
-        register_msg.set_nonce((tx_nonce[0..24]).to_vec());
-        dc.send_register(&register_msg)?;
+        let mut feed_msg = Feed::new();
+        feed_msg.set_discoveryKey(dc.discovery_key.to_vec());
+        feed_msg.set_nonce((tx_nonce[0..24]).to_vec());
+        dc.send_feed(&feed_msg)?;
 
-        // read register
-        let registration = dc.recv_register()?;
+        // read feed
+        let registration = dc.recv_feed()?;
         if registration.get_discoveryKey()[0..32] != dk[..] {
             bail!("Remote peer not sharing same discovery key");
         }
@@ -257,15 +257,15 @@ impl DatConnection {
             bail!("Expected Handshake message, got something else");
         }
 
-        // TODO: read data feed register here?
+        // TODO: read data feed here?
 
         // Fetch and configure key for data feed
         dc.get_data_key()?;
 
-        // Send (encrypted) Register/Feed message for data feed
-        let mut register_msg = Feed::new();
-        register_msg.set_discoveryKey(dc.data_discovery_key.to_vec());
-        dc.send_msg(&DatNetMessage::Register(register_msg), true)?;
+        // Send (encrypted) Feed message for data feed
+        let mut feed_msg = Feed::new();
+        feed_msg.set_discoveryKey(dc.data_discovery_key.to_vec());
+        dc.send_msg(&DatNetMessage::Feed(feed_msg), true)?;
 
         dc.tcp.set_nodelay(false)?; // Back to normal
 
@@ -290,9 +290,9 @@ impl DatConnection {
         self.write_varint(header_int as u32)?;
 
         match dnm {
-            &DatNetMessage::Register(ref m) => m.write_to_writer(self)?,
+            &DatNetMessage::Feed(ref m) => m.write_to_writer(self)?,
             &DatNetMessage::Handshake(ref m) => m.write_to_writer(self)?,
-            &DatNetMessage::Status(ref m) => m.write_to_writer(self)?,
+            &DatNetMessage::Info(ref m) => m.write_to_writer(self)?,
             &DatNetMessage::Have(ref m) => m.write_to_writer(self)?,
             &DatNetMessage::Unhave(ref m) => m.write_to_writer(self)?,
             &DatNetMessage::Want(ref m) => m.write_to_writer(self)?,
@@ -326,9 +326,9 @@ impl DatConnection {
         self.read_exact(&mut buf[0..msg_len])?;
 
         let dnm = match header & 0x0F {
-            0 => DatNetMessage::Register(parse_from_bytes::<Feed>(&mut buf)?),
+            0 => DatNetMessage::Feed(parse_from_bytes::<Feed>(&mut buf)?),
             1 => DatNetMessage::Handshake(parse_from_bytes::<Handshake>(&mut buf)?),
-            2 => DatNetMessage::Status(parse_from_bytes::<Info>(&mut buf)?),
+            2 => DatNetMessage::Info(parse_from_bytes::<Info>(&mut buf)?),
             3 => DatNetMessage::Have(parse_from_bytes::<Have>(&mut buf)?),
             4 => DatNetMessage::Unhave(parse_from_bytes::<Unhave>(&mut buf)?),
             5 => DatNetMessage::Want(parse_from_bytes::<Want>(&mut buf)?),
@@ -344,8 +344,8 @@ impl DatConnection {
 
     /// Special unencrypted variant of `send_msg()`, used only during initial connection
     /// establishment (eg, to check metadata discovery key and exchange nonces). After the
-    /// connection is initialized, send Register (aka Feed) messages as normal to add extra feeds.
-    fn send_register(&mut self, reg: &Feed) -> Result<()> {
+    /// connection is initialized, send Feed messages as normal to add extra feeds.
+    fn send_feed(&mut self, reg: &Feed) -> Result<()> {
         // TODO: refactor this to take discovery key and nonce directly
 
         let header_int: u8 = 0;
@@ -364,15 +364,15 @@ impl DatConnection {
         Ok(())
     }
 
-    /// Receive complement to `send_register()`.
-    fn recv_register(&mut self) -> Result<Feed> {
+    /// Receive complement to `send_feed()`.
+    fn recv_feed(&mut self) -> Result<Feed> {
         // TODO: refactor this to return discovery key and nonce directly
 
         let total_len: u64 = self.tcp.read_varint()?;
         let header: u8 = self.tcp.read_varint()?;
 
         if header != 0 {
-            bail!("Invalid register header received");
+            bail!("Invalid Feed header received");
         }
 
         trace!("RECV total_len={}  header={}", total_len, header);
@@ -387,11 +387,11 @@ impl DatConnection {
     }
 
     pub fn get_data_key(&mut self) -> Result<()> {
-        // Status: downloading, not uploading
-        let mut sm = Info::new();
-        sm.set_uploading(false);
-        sm.set_downloading(true);
-        self.send_msg(&DatNetMessage::Status(sm), false)?;
+        // Info: downloading, not uploading
+        let mut im = Info::new();
+        im.set_uploading(false);
+        im.set_downloading(true);
+        self.send_msg(&DatNetMessage::Info(im), false)?;
 
         // Have: nothing (so far)
         let mut hm = Have::new();
@@ -461,11 +461,11 @@ impl DatConnection {
     }
 
     pub fn receive_all(&mut self, is_content: bool, length: u64) -> Result<()> {
-        // Status: downloading, not uploading
-        let mut sm = Info::new();
-        sm.set_uploading(false);
-        sm.set_downloading(true);
-        self.send_msg(&DatNetMessage::Status(sm), is_content)?;
+        // Info: downloading, not uploading
+        let mut im = Info::new();
+        im.set_uploading(false);
+        im.set_downloading(true);
+        self.send_msg(&DatNetMessage::Info(im), is_content)?;
 
         // Have: nothing (so far)
         let mut hm = Have::new();
