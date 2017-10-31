@@ -1,6 +1,6 @@
 
 use std::io::prelude::*;
-use std::io::SeekFrom;
+use std::os::unix::fs::FileExt;
 use std::path::Path;
 use std::fs::File;
 use integer_encoding::FixedInt;
@@ -139,9 +139,10 @@ impl SleepStorage for SleepFile {
             bail!("Tried to read beyond end of SLEEP file");
         }
         let mut entry = vec![0; entry_size];
-        self.file
-            .seek(SeekFrom::Start(32 + (entry_size as u64) * index))?;
-        self.file.read_exact(&mut entry)?;
+        let got = self.file.read_at(&mut entry, 32 + (entry_size as u64) * index)?;
+        if got != entry.len() {
+            bail!("Short file read");
+        }
         Ok(entry)
     }
 
@@ -150,9 +151,10 @@ impl SleepStorage for SleepFile {
         if data.len() != self.entry_size as usize {
             bail!("Tried to write mis-sized data");
         }
-        self.file
-            .seek(SeekFrom::Start(32 + (self.entry_size as u64) * index))?;
-        self.file.write_all(&data)?;
+        let put = self.file.write_at(&data, 32 + (self.entry_size as u64) * index)?;
+        if put != data.len() {
+            bail!("Short file write");
+        }
         Ok(())
     }
 

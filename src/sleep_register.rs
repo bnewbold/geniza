@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::SeekFrom;
+use std::os::unix::fs::FileExt;
 use integer_encoding::FixedInt;
 use std::fs::OpenOptions;
 use crypto::blake2b::Blake2b;
@@ -412,8 +413,10 @@ impl HyperRegister for SleepDirRegister {
 
         // Read chunk
         let mut data = vec![0; data_len as usize];
-        data_file.seek(SeekFrom::Start(offset))?;
-        data_file.read_exact(&mut data)?;
+        let got = data_file.read_at(&mut data, offset)?;
+        if got != data.len() {
+            bail!("Short file read");
+        }
 
         // TODO: check the hash? separate function?
         Ok(data)
