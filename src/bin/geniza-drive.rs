@@ -1,7 +1,6 @@
 // Free Software under GPL-3.0, see LICENSE
 // Copyright 2017 Bryan Newbold
 
-#[macro_use]
 extern crate clap;
 extern crate env_logger;
 #[macro_use]
@@ -34,19 +33,11 @@ fn run() -> Result<()> {
             SubCommand::with_name("log")
                 .about("History of additions/deletions from this dat")
         )
+        .subcommand(
+            SubCommand::with_name("verify")
+                .about("Checks signatures et al")
+        )
         .get_matches();
-
-/*
-    mode: ::std::option::Option<u32>,
-    uid: ::std::option::Option<u32>,
-    gid: ::std::option::Option<u32>,
-    size: ::std::option::Option<u64>,
-    blocks: ::std::option::Option<u64>,
-    offset: ::std::option::Option<u64>,
-    byteOffset: ::std::option::Option<u64>,
-    mtime: ::std::option::Option<u64>,
-    ctime: ::std::option::Option<u64>,
-*/
 
     let dir = Path::new(matches.value_of("dat-dir").unwrap());
     match matches.subcommand() {
@@ -74,6 +65,10 @@ fn run() -> Result<()> {
                         entry.index, entry.path.display());
                 }
             }
+        }
+        ("verify", Some(_subm)) => {
+            let mut drive = DatDrive::open(dir, false)?;
+            println!("{:?}", drive.verify());
         }
         _ => {
             println!("Missing or unimplemented command!");

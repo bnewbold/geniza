@@ -152,6 +152,30 @@ impl<'a> DatDrive {
         unimplemented!()
     }
 
+    pub fn read_file_bytes<P: AsRef<Path>, R: Read>(&mut self, path: P) -> Result<Vec<u8>> {
+        let de = self.broken_find_file(path.as_ref())?;
+        if let Some(entry) = de {
+            // TODO: read and concatonate chunks
+            let stat = entry.stat.unwrap();
+            let mut buf = vec![];
+            let offset = stat.get_offset();
+            let blocks = stat.get_blocks();
+            for i in offset..(offset+blocks) {
+                let mut chunk = self.content.get_data_entry(i)?;
+                buf.append(&mut chunk);
+            }
+            return Ok(buf);
+        } else {
+            bail!("Couldn't find path: {}", path.as_ref().display());
+        }
+    }
+
+    pub fn verify(&mut self) -> Result<()> {
+        self.metadata.verify()?;
+        self.content.verify()?;
+        Ok(())
+    }
+
 /* Possible future helper functions to be even more like std::fs
     pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()>
     pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()>
