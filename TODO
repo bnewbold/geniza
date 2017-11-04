@@ -22,6 +22,8 @@ specific tests:
 - create a register, binary compare against known-good
 - test vectors of leaf, parent, and root hashes
 - test vectors of signatures
+- cloning with metadata pointing to relative or absolute paths
+  ("dir/../../../../etc/passwd")
 
 APIs:
 - trait: register
