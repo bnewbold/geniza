@@ -29,7 +29,8 @@ pub trait HyperRegister {
     /// Reads a single data entry from the store.
     fn get_data_entry(&mut self, entry_index: u64) -> Result<Vec<u8>>;
 
-    /// Writes an entry to the store. Requires the private key to be present.
+    /// Writes an entry to the store. Requires the private key to be present. Returns the entry
+    /// index written to.
     fn append(&mut self, data: &[u8]) -> Result<u64>;
 
     /// Count of data entries for this register. This is the total count (highest entry index plus
@@ -597,14 +598,16 @@ fn test_sdr_append() {
     let tmp_dir = TempDir::new("geniza-test").unwrap();
     let mut sdr = SleepDirRegister::create(tmp_dir.path(), "dummy").unwrap();
 
-    sdr.append("hello world!".as_bytes()).unwrap();
+    let index = sdr.append("hello world!".as_bytes()).unwrap();
+    assert_eq!(index, 0);
     assert!(sdr.check().is_ok());
     assert!(sdr.verify().is_ok());
     assert_eq!(sdr.len().unwrap(), 1);
     assert_eq!(sdr.len_bytes().unwrap(), 12);
     let count = 100; // TODO: make this >1000 when things are faster
-    for _ in 0..count {
-        sdr.append(&[1, 2, 3, 4, 5]).unwrap();
+    for i in 0..count {
+        let index = sdr.append(&[1, 2, 3, 4, 5]).unwrap();
+        assert_eq!(index, i+1);
     }
     assert!(sdr.check().is_ok());
     assert!(sdr.verify().is_ok());
