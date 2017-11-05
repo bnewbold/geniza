@@ -37,6 +37,10 @@ fn run() -> Result<()> {
             SubCommand::with_name("verify")
                 .about("Checks signatures et al")
         )
+        .subcommand(
+            SubCommand::with_name("dump-entries")
+                .about("Dump all entries in a debug-friendly format")
+        )
         .get_matches();
 
     let dir = Path::new(matches.value_of("dat-dir").unwrap());
@@ -69,6 +73,21 @@ fn run() -> Result<()> {
         ("verify", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;
             println!("{:?}", drive.verify());
+        }
+        ("dump-entries", Some(_subm)) => {
+            let mut drive = DatDrive::open(dir, false)?;
+            for entry in drive.history(0) {
+                let entry = entry?;
+                println!("{}\tpath: {}",
+                    entry.index, entry.path.display());
+                println!("\tchildren: {:?}",
+                    entry.children);
+                if let Some(_) = entry.stat {
+                    println!("\tstat: Some (add/change)");
+                } else {
+                    println!("\tstat: None (delete)");
+                }
+            }
         }
         _ => {
             println!("Missing or unimplemented command!");
