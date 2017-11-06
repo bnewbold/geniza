@@ -26,8 +26,23 @@ fn run() -> Result<()> {
             .default_value(".dat") // TODO: needs to be default_value_os?
             .takes_value(true))
         .subcommand(
+            SubCommand::with_name("init")
+                .about("Creates a blank drive")
+        )
+        .subcommand(
             SubCommand::with_name("ls")
                 .about("Lists current files in this dat")
+        )
+        .subcommand(
+            SubCommand::with_name("cat")
+                .about("Prints a file (as a string) to stdout")
+                .arg_from_usage("<FILE> 'file to add'")
+        )
+        .subcommand(
+            SubCommand::with_name("import-file")
+                .about("Adds an indivudal file to the dat")
+                .arg_from_usage("<FILE> 'file to add'")
+                .arg_from_usage("--target <path> 'path to import the file to (if not top level)'")
         )
         .subcommand(
             SubCommand::with_name("log")
@@ -45,12 +60,36 @@ fn run() -> Result<()> {
 
     let dir = Path::new(matches.value_of("dat-dir").unwrap());
     match matches.subcommand() {
+        ("init", Some(_subm)) => {
+            let drive = DatDrive::create(dir)?;
+            // TODO: print public key in hex
+            println!("Done!");
+        }
         ("ls", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;
             for entry in drive.read_dir_recursive("/") {
                 let entry = entry?;
                 println!("{}", entry.path.display());
             }
+        }
+        ("import-file", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            let fpath = match subm.value_of("target") {
+                None => Path::new("/").join(path.file_name().unwrap()),
+                Some(p) => Path::new("/").join(p)
+            };
+            drive.import_file(&path, &fpath)?;
+
+        }
+        ("cat", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            let data = drive.read_file_bytes(&path)?;
+            // TODO: just write to stdout
+            let s = String::from_utf8(data).unwrap();
+            println!("{}", s);
+
         }
         ("log", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;
