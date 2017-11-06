@@ -345,17 +345,19 @@ impl<'a> DatDrive {
         stat.set_blocks(data_entries);
         stat.set_offset(data_offset);
         stat.set_byteOffset(data_byte_offset);
-        return self.append_metadata_entry(&path, &stat);
+        return self.append_metadata_entry(&path, Some(&stat));
     }
 
-    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: &Stat) -> Result <()> {
+    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: Option<&Stat>) -> Result <()> {
         let index = self.entry_count()? + 1;
         let path = path.as_ref();
         let children = self.new_child_index(&path, index)?;
         let children = encode_children(&children, index)?;
         let mut node = Node::new();
         node.set_name(path.to_string_lossy().into_owned());
-        node.set_value(stat.write_to_bytes()?);
+        if let Some(val) = stat {
+            node.set_value(val.write_to_bytes()?);
+        }
         node.set_paths(children);
         self.metadata.append(&node.write_to_bytes()?)?;
         return Ok(());
@@ -421,7 +423,6 @@ impl<'a> DatDrive {
         unimplemented!()
     }
 
-    // XXX: test this function
     pub fn read_file_bytes<P: AsRef<Path>>(&mut self, path: P) -> Result<Vec<u8>> {
         let de = self.get_file_entry(path.as_ref())?;
         if let Some(entry) = de {
@@ -440,9 +441,35 @@ impl<'a> DatDrive {
         }
     }
 
+    /// For now, simply verifies that both metadata and content registers are properly signed.
     pub fn verify(&mut self) -> Result<()> {
         self.metadata.verify()?;
         self.content.verify()?;
+        Ok(())
+    }
+
+    // XXX: needs test
+    pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        let path = path.as_ref();
+        let current = self.get_file_entry(path)?;
+        if let Some(val) = current {
+            return self.append_metadata_entry(&val.path, None);
+        } else {
+            bail!("Tried to delete non-existant file: {}", path.display());
+        }
+    }
+
+    // XXX: needs test
+    pub fn remove_dir_all<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        // Crude implementation:
+        // 1. get list of all file paths
+        let path = path.as_ref();
+        let files: Vec<PathBuf> = self.read_dir_recursive(path).map(|de| de.unwrap().path).collect();
+
+        // 2. remove each
+        for f in files {
+            self.remove_file(&f)?;
+        }
         Ok(())
     }
 
@@ -464,15 +491,19 @@ impl<'a> DatDrive {
         } else {
             bail!("'from' file was deleted");
         };
-        return self.append_metadata_entry(&to, &stat);
+        return self.append_metadata_entry(&to, Some(&stat));
     }
 
-/* Possible future helper functions to be even more like std::fs
-    pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()>
-    pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()>
-    pub fn remove_dir_all<P: AsRef<Path>>(&mut self, path: P) -> Result<()>
-*/
+    // XXX: needs test
+    pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()> {
+        // Crude implementation:
+        // 1. copy file
+        let from = from.as_ref();
+        self.copy(from, to)?;
 
+        // 2. delete the original
+        self.remove_file(from)
+    }
 }
 
 #[test]
@@ -577,7 +608,6 @@ fn test_dd_readback() {
     let mut stat = make_test_stat();
     dd.add_file_bytes("/sub/other.txt", &mut stat, "goodbye".as_bytes()).unwrap();
 
-    debug!("reading 1");
     assert_eq!(&dd.read_file_bytes("/here/msg.txt").unwrap()[..],
                "hello world".as_bytes());
     assert_eq!(&dd.read_file_bytes("/sub/other.txt").unwrap()[..],
