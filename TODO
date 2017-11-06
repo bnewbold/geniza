@@ -1,7 +1,10 @@
 
 next:
 - file check in/out
-- drive children/tree stuff
+- drive: deletion
+- drive: think through child index creation
+- drive+network sync
+- drive+network broadcast
 - bitfield stuff (un-indexed)
     https://docs.rs/bit_field/0.8.0/bit_field/trait.BitArray
 - secret_key-in-home helpers (read/write)
@@ -44,8 +47,12 @@ geniza: command line, swarm
 
 
 Backburner:
+- benchmarks! syscall counts (strace), timing, etc
+- test fault injection... with strace?
+- consider kafka (append performance) and sqlite (robustness) file I/O patterns
 - manpage
 - slog for logging
+- lru caches
 - disable sodiumoxide serde feature
 - sodiumoxide static link
     https://safenetforum.org/t/building-a-non-dynamically-linked-executable-of-safe-vault/9811/6
@@ -57,8 +64,8 @@ Backburner:
     https://docs.rs/scroll/0.7.0/scroll/
 - switch to byteorder for endian reads/writes
 - --json args to most CLI commands
-- simplify APIs
-- SleepFile from existing File
+- ruthlessly simplify APIs
+- SleepFile from existing File (api)
 - refactor key generation into generic/re-usable function
 - turn magic numbers in tree nodes into declared (public?) constants
 - root_nodes as an iterator? (vs returning a Vec)

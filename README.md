@@ -25,9 +25,9 @@ it will eat-your-data!
     - [ ] bitfields
 - [ ] Drive metadata and files
     - [x] read full history ("log")
-    - [ ] read file tree ("ls")
-    - [ ] import file to register
-    - [ ] export file from register
+    - [x] read file tree ("ls")
+    - [x] import file to register
+    - [x] export file from register
     - [ ] import/export directories recursively
 - [ ] Networking
     - [x] send/receive encrypted messages to a known host
