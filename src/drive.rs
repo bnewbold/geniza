@@ -3,6 +3,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
 use std::fs::File;
+use std::cmp::min;
+use std::ffi::OsStr;
 use protobuf::Message;
 use protobuf::parse_from_bytes;
 use integer_encoding::VarInt;
@@ -51,9 +53,18 @@ impl DatDrive {
     }
 }
 
-fn decode_children(raw: &[u8]) -> Result<Vec<Vec<u64>>> {
+/// Inflates a binary-encoded child index table. `current` is the entry index number that this
+/// child index is associated with.
+fn decode_children(raw: &[u8], current: u64) -> Result<Vec<Vec<u64>>> {
     let mut children = vec![];
     let mut offset = 0; // byte offset that we have read up to
+    if raw.len() < 1 {
+        bail!("Expected (binary-encoded) children to have len>=1");
+    }
+    let (header, inc): (u64, usize) = VarInt::decode_var(&raw[offset..]);
+    offset += inc;
+    let append_current = (header & 0x01) == 0x01;
+    trace!("append_current: {} header: {}", append_current, header);
     while offset < raw.len() {
         trace!("offset={} len={}", offset, raw.len());
         let mut sub = vec![];
@@ -70,18 +81,39 @@ fn decode_children(raw: &[u8]) -> Result<Vec<Vec<u64>>> {
             offset += inc;
             sub.push(run);
         }
+        if append_current {
+            sub.push(current);
+        }
         children.push(sub);
     }
     trace!("decoded children: {:?}", children);
     Ok(children)
 }
 
-fn encode_children(children: &Vec<Vec<u64>>) -> Result<Vec<u8>> {
+/// Binary encodes a child index table. `current` is the entry index number that this child index
+/// is associated with.
+fn encode_children(children: &Vec<Vec<u64>>, current: u64) -> Result<Vec<u8>> {
     // Use of encode_var_vec() instead of encode_var() here is sort of lazy
 
     let mut buf = vec![];
+
+    // Check if the "all arrays end with current index" flag is set
+    let mut current_appended = true;
+    for sub in children {
+        if sub.len() == 0 || sub[sub.len() - 1] != current {
+            current_appended = false;
+            break;
+        }
+    }
+
+    let header: u64 = if current_appended { 0x01 } else { 0x00 };
+    buf.append(&mut header.encode_var_vec());
+
     for subvec in children {
         let mut subvec = subvec.clone();
+        if current_appended {
+            subvec.pop();
+        }
         buf.append(&mut subvec.len().encode_var_vec());
         subvec.sort_unstable();
         let mut last = 0;
@@ -94,10 +126,59 @@ fn encode_children(children: &Vec<Vec<u64>>) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// Returns the count of path components 
+///
+/// NB: does not distinguish between paths ending in a directory ("/thing/") and those ending with
+/// a file ("/thing")
+fn longest_common_prefix<P: AsRef<Path>, Q: AsRef<Path>>(a: P, b: Q) -> u64 {
+
+    let a: Vec<&OsStr> = a.as_ref().iter().collect();
+    let b: Vec<&OsStr> = b.as_ref().iter().collect();
+
+    let mut common = 0;
+    for i in 0..min(a.len(), b.len()) {
+        if a[i] != b[i] {
+            break;
+        }
+        common = i + 1; // +1 for count
+    }
+    common as u64
+}
+
+#[test]
+fn test_longest_common_prefix() {
+
+    assert_eq!(longest_common_prefix(
+        "a",
+        "b"),
+        0);
+    assert_eq!(longest_common_prefix(
+        "a",
+        "a"),
+        1);
+    assert_eq!(longest_common_prefix(
+        "/hello/world",
+        "/hello/goodbye"),
+        2);
+    assert_eq!(longest_common_prefix(
+        "/hello/my/friend/",
+        "/hello/my/friend"),
+        4);
+    assert_eq!(longest_common_prefix(
+        "/hello/goodbye",
+        "/hello/my/friend"),
+        2);
+    assert_eq!(longest_common_prefix(
+        "/ein/zwei",
+        "/one/two/three"),
+        1);
+}
+
 impl<'a> DatDrive {
 
     fn broken_find_file(&mut self, path: &Path) -> Result<Option<DriveEntry>> {
-        for i in (0..self.entry_count()?).rev() {
+        // pubkey increment-by-one
+        for i in (1..(self.entry_count()? + 1)).rev() {
             let de = self.get_dir_entry(i)?;
             if de.path == path {
                 if de.stat.is_none() {
@@ -119,15 +200,18 @@ impl<'a> DatDrive {
     /// Entry index is counted by drive entries (not including the first register entry, which is
     /// the content register public key)
     fn get_dir_entry(&mut self, entry_index: u64) -> Result<DriveEntry> {
+        if entry_index == 0 {
+            bail!("First entry in a drive is pubkey metadata, not a DriveEntry");
+        }
         trace!("fetching drive entry {} (of {})", entry_index, self.entry_count()?);
-        let data = self.metadata.get_data_entry(entry_index+1)?;
+        let data = self.metadata.get_data_entry(entry_index)?;
         let node = parse_from_bytes::<Node>(&data)?;
         let stat = match node.has_value() {
             true => Some(parse_from_bytes::<Stat>(&node.get_value())?),
             false => None,
         };
 
-        let children = decode_children(node.get_paths())?;
+        let children = decode_children(node.get_paths(), entry_index)?;
 
         Ok(DriveEntry {
             index: entry_index,
@@ -137,20 +221,70 @@ impl<'a> DatDrive {
         })
     }
 
-    fn get_nearest<P: AsRef<Path>>(&mut self, _path: P) -> Result<DriveEntry> {
-        // 0. if register is empty, bail out early
-        let len = self.entry_count()?;
-        if len == 0 {
-            bail!("Expected at least one entry, but drive is empty")
+    /// Returns the drive entry which: 1) has the longest common path prefix to the given path 2)
+    /// is the most recent
+    fn get_nearest<P: AsRef<Path>>(&mut self, path: P) -> Result<Option<DriveEntry>> {
+
+        let path = path.as_ref();
+
+        // If register is empty, bail early
+        let reg_len = self.entry_count()?;
+        if reg_len == 0 {
+            return Ok(None);
         }
 
         // 1. get most recent entry (tail of register)
-        return self.get_dir_entry(len - 1);
+        let mut current = self.get_dir_entry(reg_len)?; // "len + 1 - 1"
 
-        // XXX: actual implementation...
+        // 1.1 If either path didn't start with '/', bail early
+        if !path.has_root() {
+            bail!("Passed a path with no root prefix: {}", path.display());
+        }
+        if !current.path.has_root() {
+            bail!("Passed a path with no root prefix: {}", current.path.display());
+        }
+        // If paths match, return current
+        if current.path.starts_with(path) {
+            return Ok(Some(current));
+        }
+
+        // 2. find longest common prefix; take all entries from that level
+        let mut common_components = longest_common_prefix(path, &current.path);
+        assert!(common_components >= 1);
+        let mut entries = current.children[(common_components-1) as usize].clone();
+
+        // 3. for each of those entries (going in recent-first order):
+        //      - if a full prefix match, return entry
+        //      - if a closer (longer) match, clear entries and recurse
+        //      - if not longer match, continue
+        //      - if end of list, return current entry
+        loop {
+            if entries.len() == 0 {
+                break;
+            }
+            for e in entries.clone().iter().rev() {
+                let entry = self.get_dir_entry(*e)?;
+                if entry.path.starts_with(path) {
+                    return Ok(Some(entry));
+                }
+                let this_common = longest_common_prefix(path, &entry.path);
+                if this_common > common_components {
+                    common_components = this_common;
+                    current = entry;
+                    entries = current.children[(common_components-1) as usize].clone();
+                    break;
+                } else {
+                    continue;
+                }
+            }
+        }
+        Ok(Some(current))
     }
 
+    /// 'start' is the drive metadata register entry index. Zero is skipped automatically.
     pub fn history<'b>(&'b mut self, start: u64) -> DriveHistory<'b> {
+        // skip pubkey entry
+        let start = if start == 0 { 1 } else { start };
         DriveHistory {
             drive: self,
             current: start,
@@ -183,8 +317,8 @@ impl<'a> DatDrive {
     }
 
     pub fn add_file<P: AsRef<Path>, R: Read>(&mut self, path: P, stat: &mut Stat, mut source: R) -> Result<()> {
+        // TODO: canonicalize path
         // TODO: check if file already exists
-        // XXX: verify stat size against passed size
         let mut total_size: u64 = 0;
         let mut data_entries: u64 = 0;
         let mut buf = [0; 65536];
@@ -210,9 +344,8 @@ impl<'a> DatDrive {
         stat.set_blocks(data_entries);
         stat.set_offset(data_offset);
         stat.set_byteOffset(data_byte_offset);
-        // XXX: actual child implementation
-        let children = vec![];
-        let children = encode_children(&children)?;
+        let children = self.new_child_index(&path, data_offset)?;
+        let children = encode_children(&children, data_offset)?;
         let mut node = Node::new();
         node.set_name(path.as_ref().to_string_lossy().into_owned());
         node.set_value(stat.write_to_bytes()?);
@@ -222,10 +355,42 @@ impl<'a> DatDrive {
         Ok(())
     }
 
+    fn new_child_index<P: AsRef<Path>>(&mut self, path: P, index: u64) -> Result<Vec<Vec<u64>>> {
+
+        let path = path.as_ref();
+        let path_len = path.iter().count() as u64;
+        let mut depth: u64 = 0;
+        let mut children: Vec<Vec<u64>> = vec![];
+        while depth < path_len {
+            // 1. get nearest at every level of path (starting at "/")
+            let prefix: Vec<String> = path.iter().take(depth as usize).map(|s| s.to_string_lossy().into_owned()).collect();
+            let prefix = Path::new("/").join(prefix.join("/"));
+            let nearest = match self.get_nearest(prefix)? {
+                None => {
+                    children.push(vec![index]);
+                    depth += 1;
+                    continue;
+                },
+                Some(de) => de,
+            };
+            // 2. consider up to common components
+            let common = longest_common_prefix(path, &nearest.path);
+            for i in depth..common {
+                let mut component_entries = nearest.children[i as usize].clone();
+                // 3. add this entry to each component
+                component_entries.push(index);
+                children.push(component_entries);
+            }
+            // 4. loop for remaining components
+            assert!(common + 1 > depth);
+            depth = common + 1;
+        }
+        Ok(children)
+    }
+
     /// Copies Stat metadata and all content from a file in the "real" filesystem into the
     /// DatDrive.
     pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
-        // XXX: check if file already exists
         let in_file = File::open(source)?;
         let in_metadata = in_file.metadata()?;
         let mut stat = Stat::new();
@@ -284,16 +449,16 @@ fn test_dd_open() {
 
     // verified from dat log
     assert_eq!(dd.history(0).count(), 2);
-    //XXX:assert_eq!(dd.read_dir("/").count(), 1);
-    //XXX:assert_eq!(dd.read_dir_recursive("/").count(), 1);
+    assert_eq!(dd.read_dir("/").count(), 1);
+    assert_eq!(dd.read_dir_recursive("/").count(), 1);
 
     let mut dd =
         DatDrive::open(Path::new("test-data/dat/tree/.dat/"), false).unwrap();
 
     // verified from dat log
     assert_eq!(dd.history(0).count(), 8);
-    // XXX: assert_eq!(dd.read_dir("/").count(), 2);
-    // XXX: assert_eq!(dd.read_dir_recursive("/").count(), 6);
+    assert_eq!(dd.read_dir("/").count(), 2);
+    assert_eq!(dd.read_dir_recursive("/").count(), 6);
 }
 
 #[test]
@@ -307,6 +472,7 @@ fn test_dd_create() {
     assert_eq!(dd.read_dir_recursive("/").count(), 0);
 }
 
+#[cfg(test)]
 fn make_test_stat() -> Stat {
     let mut stat = Stat::new();
     stat.set_mode(0o777);
@@ -329,19 +495,18 @@ fn test_dd_add() {
     stat.set_size(123);
     dd.add_file_bytes("/bytes.bin", &mut stat, &data).unwrap();
     assert_eq!(dd.history(0).count(), 1);
-    //XXX:assert_eq!(dd.read_dir("/").count(), 1);
-    //XXX:assert_eq!(dd.read_dir_recursive("/").count(), 1);
+    assert_eq!(dd.read_dir("/").count(), 1);
+    assert_eq!(dd.read_dir_recursive("/").count(), 1);
     assert_eq!(dd.content.len_bytes().unwrap(), 123);
 
     stat.set_size(65);
     dd.add_file("/bytes_read.bin", &mut stat, &data[0..65]).unwrap();
     assert_eq!(dd.history(0).count(), 2);
-    //XXX:assert_eq!(dd.read_dir("/").count(), 2);
-    //XXX:assert_eq!(dd.read_dir_recursive("/").count(), 2);
+    assert_eq!(dd.read_dir("/").count(), 2);
+    assert_eq!(dd.read_dir_recursive("/").count(), 2);
     assert_eq!(dd.content.len_bytes().unwrap(), 123+65);
 }
 
-// TODO: unpack Node into a pub struct
 #[derive(Debug)]
 pub struct DriveEntry {
     pub index: u64,
@@ -359,7 +524,9 @@ pub struct DriveHistory<'a> {
 impl<'a> Iterator for DriveHistory<'a> {
     type Item = Result<DriveEntry>;
     fn next(&mut self) -> Option<Result<DriveEntry>> {
-        if self.current >= self.drive.entry_count().unwrap() {
+        // pubkey increment-by-one logic here
+        // XXX: unwrap. on error, return Some(err), then None?
+        if self.current > self.drive.entry_count().unwrap() {
             return None;
         }
         let de = self.drive.get_dir_entry(self.current);
@@ -372,45 +539,35 @@ impl<'a> Iterator for DriveHistory<'a> {
 pub struct ReadDriveDir<'a> {
     drive: &'a mut DatDrive,
     recursive: bool,
+    path: PathBuf,
 
-    // Entries to recurse over
-    entries: Vec<u64>,
+    // Entries to iterate over. Tuple of (depth, entry_index), where depth is the path prefix count
+    // where this entry was encountered and added to the list.
+    entries: Vec<(u64, u64)>,
 }
 
 impl<'a> ReadDriveDir<'a> {
     fn init<P: AsRef<Path>>(drive: &mut DatDrive, path: P, recursive: bool) -> Result<ReadDriveDir> {
 
+        let path = path.as_ref();
+
         // first entry is content pub key
         let entries = if drive.entry_count()? == 0 {
             vec![]
         } else {
-/* XXX: actual implementation
-            let nearest = drive.get_nearest(path)?;
-            // TODO: starting from the last data entry, recurse up to nearest directory, then recurse
-            // down to base path
-            let mut entries = vec![];
-            /* XXX:
-            if nearest.stat.is_some() {
-                // XXX: mapping fixer
-                entries.push(nearest.index - 1);
+            // start at the latest entry with the same path prefix
+            match drive.get_nearest(path)? {
+                Some(nearest) => {
+                    let common_components = longest_common_prefix(path, nearest.path);
+                    let list = nearest.children[(common_components - 1) as usize].clone();
+                    list.iter().map(|e| (common_components, *e)).collect()
+                },
+                None => vec![],
             }
-            */
-            // XXX: flatten entries, not really the right thing to do
-            for mut sub in nearest.children {
-                entries.append(&mut sub);
-            }
-*/
-            let mut entries = vec![];
-            for i in 0..drive.entry_count()? {
-                let e = drive.get_dir_entry(i)?;
-                if e.stat.is_some() {
-                    entries.push(i);
-                }
-            }
-            entries
         };
         Ok(ReadDriveDir {
             drive,
+            path: path.to_path_buf(),
             recursive,
             entries: entries,
         })
@@ -419,11 +576,59 @@ impl<'a> ReadDriveDir<'a> {
 
 impl<'a> Iterator for ReadDriveDir<'a> {
     type Item = Result<DriveEntry>;
+
     fn next(&mut self) -> Option<Result<DriveEntry>> {
-        // TODO: actually recurse
-        match self.entries.pop() {
-            None => None,
-            Some(this_index) => Some(self.drive.get_dir_entry(this_index))
+        debug!("ReadDriveDir: {:?}", self.entries);
+        let (depth, entry) = match self.entries.pop() {
+            None => { return None },
+            Some((depth, this_index)) => (depth, self.drive.get_dir_entry(this_index))
+        };
+        let entry = match entry {
+            Err(_) => return Some(entry),
+            Ok(e) => e,
+        };
+
+        // defensive programming... shouldn't ever have entries that aren't children of path
+        if !entry.path.starts_with(&self.path) {
+            warn!("unexpected non-child path entry in ReadDriveDir iterator: {}",
+                entry.path.display());
+            return self.next();
+        }
+
+        if entry.path.iter().count() <= self.path.iter().count() + 1 {
+            // direct child of the path; always return
+            if entry.stat.is_some() {
+                return Some(Ok(entry));
+            } else {
+                return self.next();
+            }
+        } else {
+            // subdirectory entry; depends on recursion
+            if !self.recursive {
+                return self.next();
+            } else {
+                // if entry was added as a child of this depth, just return it...
+                if entry.children.len() as u64 <= depth + 1 {
+                    if entry.stat.is_some() {
+                        return Some(Ok(entry));
+                    } else {
+                        return self.next();
+                    }
+                }
+                // ... else add child path entries and recurse
+                for subdir in ((depth+1) as usize)..entry.children.len() {
+                    let mut new_children: Vec<(u64, u64)> = entry.children[subdir].iter()
+                        .filter(|&e| (*e != entry.index || subdir == entry.children.len()))
+                        .map(|&e| (subdir as u64, e))
+                        .collect();
+                    self.entries.append(&mut new_children);
+                }
+                if entry.stat.is_some() {
+                    return Some(Ok(entry));
+                } else {
+                    return self.next();
+                }
+            }
         }
     }
 }
