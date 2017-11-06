@@ -176,21 +176,6 @@ fn test_longest_common_prefix() {
 
 impl<'a> DatDrive {
 
-    fn broken_find_file(&mut self, path: &Path) -> Result<Option<DriveEntry>> {
-        // pubkey increment-by-one
-        for i in (1..(self.entry_count()? + 1)).rev() {
-            let de = self.get_dir_entry(i)?;
-            if de.path == path {
-                if de.stat.is_none() {
-                    return Ok(None);
-                } else {
-                    return Ok(Some(de));
-                }
-            }
-        }
-        Ok(None)
-    }
-
     /// Returns number of drive metadata entries (not including the first entry, which is the
     /// content register public key)
     fn entry_count(&mut self) -> Result<u64> {
@@ -226,6 +211,7 @@ impl<'a> DatDrive {
     fn get_nearest<P: AsRef<Path>>(&mut self, path: P) -> Result<Option<DriveEntry>> {
 
         let path = path.as_ref();
+        trace!("get_nearest: {}", path.display());
 
         // If register is empty, bail early
         let reg_len = self.entry_count()?;
@@ -258,11 +244,12 @@ impl<'a> DatDrive {
         //      - if a closer (longer) match, clear entries and recurse
         //      - if not longer match, continue
         //      - if end of list, return current entry
-        loop {
+        'outer: loop {
+            trace!("entries loop: {:?}", entries);
             if entries.len() == 0 {
                 break;
             }
-            for e in entries.clone().iter().rev() {
+            'inner: for e in entries.clone().iter().rev() {
                 let entry = self.get_dir_entry(*e)?;
                 if entry.path.starts_with(path) {
                     return Ok(Some(entry));
@@ -272,13 +259,27 @@ impl<'a> DatDrive {
                     common_components = this_common;
                     current = entry;
                     entries = current.children[(common_components-1) as usize].clone();
-                    break;
+                    continue 'outer;
                 } else {
-                    continue;
+                    continue 'inner;
                 }
             }
+            break 'outer;
         }
         Ok(Some(current))
+    }
+
+    fn get_file_entry(&mut self, path: &Path) -> Result<Option<DriveEntry>> {
+        match self.get_nearest(path)? {
+            None => return Ok(None),
+            Some(de) => {
+                if de.path != path || !de.stat.is_some() {
+                    return Ok(None);
+                } else {
+                    return Ok(Some(de));
+               }
+            }
+        }
     }
 
     /// 'start' is the drive metadata register entry index. Zero is skipped automatically.
@@ -302,7 +303,7 @@ impl<'a> DatDrive {
     }
 
     pub fn file_metadata<P: AsRef<Path>>(&mut self, path: P) -> Result<Stat> {
-        let de = self.broken_find_file(path.as_ref())?;
+        let de = self.get_file_entry(path.as_ref())?;
         if let Some(entry) = de {
             // if entry.stat was None, we'd have gotten None back
             return Ok(entry.stat.unwrap());
@@ -312,10 +313,10 @@ impl<'a> DatDrive {
     }
 
     pub fn add_file_bytes<P: AsRef<Path>>(&mut self, path: P, stat: &mut Stat, data: &[u8]) -> Result<()> {
-        // For now, just copies the data into a Vec (which implements Read)
         self.add_file(path, stat, data)
     }
 
+    // TODO: return version
     pub fn add_file<P: AsRef<Path>, R: Read>(&mut self, path: P, stat: &mut Stat, mut source: R) -> Result<()> {
         // TODO: canonicalize path
         // TODO: check if file already exists
@@ -344,15 +345,20 @@ impl<'a> DatDrive {
         stat.set_blocks(data_entries);
         stat.set_offset(data_offset);
         stat.set_byteOffset(data_byte_offset);
-        let children = self.new_child_index(&path, data_offset)?;
-        let children = encode_children(&children, data_offset)?;
+        return self.append_metadata_entry(&path, &stat);
+    }
+
+    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: &Stat) -> Result <()> {
+        let index = self.entry_count()? + 1;
+        let path = path.as_ref();
+        let children = self.new_child_index(&path, index)?;
+        let children = encode_children(&children, index)?;
         let mut node = Node::new();
-        node.set_name(path.as_ref().to_string_lossy().into_owned());
+        node.set_name(path.to_string_lossy().into_owned());
         node.set_value(stat.write_to_bytes()?);
         node.set_paths(children);
         self.metadata.append(&node.write_to_bytes()?)?;
-
-        Ok(())
+        return Ok(());
     }
 
     fn new_child_index<P: AsRef<Path>>(&mut self, path: P, index: u64) -> Result<Vec<Vec<u64>>> {
@@ -375,6 +381,13 @@ impl<'a> DatDrive {
             };
             // 2. consider up to common components
             let common = longest_common_prefix(path, &nearest.path);
+            // (assuming we had any new common components; if not, fill in with outself)
+            if common <= depth {
+                for _ in depth..path_len {
+                    children.push(vec![index]);
+                }
+                break;
+            }
             for i in depth..common {
                 let mut component_entries = nearest.children[i as usize].clone();
                 // 3. add this entry to each component
@@ -382,8 +395,8 @@ impl<'a> DatDrive {
                 children.push(component_entries);
             }
             // 4. loop for remaining components
-            assert!(common + 1 > depth);
-            depth = common + 1;
+            assert!(common > depth);
+            depth = common;
         }
         Ok(children)
     }
@@ -408,10 +421,11 @@ impl<'a> DatDrive {
         unimplemented!()
     }
 
-    pub fn read_file_bytes<P: AsRef<Path>, R: Read>(&mut self, path: P) -> Result<Vec<u8>> {
-        let de = self.broken_find_file(path.as_ref())?;
+    // XXX: test this function
+    pub fn read_file_bytes<P: AsRef<Path>>(&mut self, path: P) -> Result<Vec<u8>> {
+        let de = self.get_file_entry(path.as_ref())?;
         if let Some(entry) = de {
-            // TODO: read and concatonate chunks
+            // XXX: read and concatonate chunks
             let stat = entry.stat.unwrap();
             let mut buf = vec![];
             let offset = stat.get_offset();
@@ -432,9 +446,29 @@ impl<'a> DatDrive {
         Ok(())
     }
 
+    // XXX: needs test
+    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()> {
+        let from = from.as_ref();
+        let to = to.as_ref();
+        if from == to {
+            bail!("Can't copy from self to self: {}", from.display());
+        }
+        let prev = if let Some(thing) = self.get_file_entry(from)? {
+            thing 
+        } else {
+            bail!("File not in drive: {}", from.display());
+        };
+        // This check might be defensive (can we ever receive a deletion from get_file_entry()?)
+        let stat = if let Some(thing) = prev.stat {
+            thing
+        } else {
+            bail!("'from' file was deleted");
+        };
+        return self.append_metadata_entry(&to, &stat);
+    }
+
 /* Possible future helper functions to be even more like std::fs
     pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()>
-    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()>
     pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()>
     pub fn remove_dir_all<P: AsRef<Path>>(&mut self, path: P) -> Result<()>
 */
@@ -459,6 +493,28 @@ fn test_dd_open() {
     assert_eq!(dd.history(0).count(), 8);
     assert_eq!(dd.read_dir("/").count(), 2);
     assert_eq!(dd.read_dir_recursive("/").count(), 6);
+
+    let mut dd =
+        DatDrive::open(Path::new("test-data/dat/alphabet/.dat/"), false).unwrap();
+
+    // verified from dat log
+    assert_eq!(dd.history(0).count(), 6);
+    assert_eq!(dd.read_dir("/").count(), 6);
+    assert_eq!(dd.read_dir_recursive("/").count(), 6);
+}
+
+#[test]
+fn test_dd_get_nearest() {
+
+    let mut dd =
+        DatDrive::open(Path::new("test-data/dat/tree/.dat/"), false).unwrap();
+
+    assert!(dd.get_nearest("asdf").is_err());
+    assert_eq!(dd.get_nearest("/NonExistant").unwrap().unwrap().index, 8);
+    assert_eq!(dd.get_nearest("/").unwrap().unwrap().index, 8);
+    assert_eq!(dd.get_nearest("/Fungi/Basidiomycota").unwrap().unwrap().index, 6);
+    assert_eq!(dd.get_nearest("/datapackage.json").unwrap().unwrap().index, 8);
+    assert_eq!(dd.get_nearest("/README.md").unwrap().unwrap().index, 1);
 }
 
 #[test]
@@ -505,7 +561,42 @@ fn test_dd_add() {
     assert_eq!(dd.read_dir("/").count(), 2);
     assert_eq!(dd.read_dir_recursive("/").count(), 2);
     assert_eq!(dd.content.len_bytes().unwrap(), 123+65);
+
+    dd.add_file_bytes("/here/msg.txt", &mut stat, "hello world".as_bytes()).unwrap();
+    dd.add_file_bytes("/there/msg.txt", &mut stat, "goodbye world".as_bytes()).unwrap();
 }
+
+#[test]
+fn test_dd_readback() {
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    let mut stat = make_test_stat();
+    dd.add_file_bytes("/here/msg.txt", &mut stat, "hello world".as_bytes()).unwrap();
+    let mut stat = make_test_stat();
+    dd.add_file_bytes("/sub/other.txt", &mut stat, "goodbye".as_bytes()).unwrap();
+
+    debug!("reading 1");
+    assert_eq!(&dd.read_file_bytes("/here/msg.txt").unwrap()[..],
+               "hello world".as_bytes());
+    assert_eq!(&dd.read_file_bytes("/sub/other.txt").unwrap()[..],
+               "goodbye".as_bytes());
+}
+
+/* TODO: needs data in register, or support for reading from checkout
+#[test]
+fn test_dd_read_file_bytes() {
+
+    let mut dd =
+        DatDrive::open(Path::new("test-data/dat/alphabet/.dat/"), false).unwrap();
+
+    assert_eq!("a".as_bytes(), &dd.read_file_bytes("/a").unwrap()[..]);
+    assert_eq!("b".as_bytes(), &dd.read_file_bytes("/b").unwrap()[..]);
+    assert_eq!("c".as_bytes(), &dd.read_file_bytes("/c").unwrap()[..]);
+    assert_eq!("e".as_bytes(), &dd.read_file_bytes("/e").unwrap()[..]);
+}
+*/
 
 #[derive(Debug)]
 pub struct DriveEntry {
