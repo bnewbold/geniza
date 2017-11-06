@@ -1,8 +1,8 @@
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::os::unix::fs::MetadataExt;
-use std::fs::File;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::fs::{File, OpenOptions};
 use std::cmp::min;
 use std::ffi::OsStr;
 use protobuf::Message;
@@ -403,6 +403,7 @@ impl<'a> DatDrive {
         Ok(children)
     }
 
+    // XXX: needs test
     /// Copies Stat metadata and all content from a file in the "real" filesystem into the
     /// DatDrive.
     pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
@@ -418,15 +419,36 @@ impl<'a> DatDrive {
         self.add_file(dest, &mut stat, in_file)
     }
 
+    // XXX: needs test
     /// Copies a file from the drive to the "real" filesystem, preserving Stat metadata.
-    pub fn export_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, _source: P, _dest: Q) -> Result<()> {
-        unimplemented!()
+    pub fn export_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
+
+        let source = source.as_ref();
+        let de = self.get_file_entry(source)?;
+        if let Some(entry) = de {
+            let stat = entry.stat.unwrap();
+            let mut out_file = OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .mode(stat.get_mode())
+                .open(dest)?;
+            let offset = stat.get_offset();
+            let blocks = stat.get_blocks();
+            for i in offset..(offset+blocks) {
+                let chunk = self.content.get_data_entry(i)?;
+                out_file.write_all(&chunk)?;
+            }
+            // TODO: more outfile metadata (uid, guid, etc)
+        } else {
+            bail!("Couldn't find path: {}", source.display());
+        }
+
+        Ok(())
     }
 
     pub fn read_file_bytes<P: AsRef<Path>>(&mut self, path: P) -> Result<Vec<u8>> {
         let de = self.get_file_entry(path.as_ref())?;
         if let Some(entry) = de {
-            // XXX: read and concatonate chunks
             let stat = entry.stat.unwrap();
             let mut buf = vec![];
             let offset = stat.get_offset();

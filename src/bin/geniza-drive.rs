@@ -45,6 +45,12 @@ fn run() -> Result<()> {
                 .arg_from_usage("--target <path> 'path to import the file to (if not top level)'")
         )
         .subcommand(
+            SubCommand::with_name("export-file")
+                .about("Copies a file from dat archive to local disk")
+                .arg_from_usage("<FILE> 'file to export'")
+                .arg_from_usage("--target <path> 'path to save the file to (if not same name)'")
+        )
+        .subcommand(
             SubCommand::with_name("log")
                 .about("History of additions/deletions from this dat")
         )
@@ -61,7 +67,7 @@ fn run() -> Result<()> {
     let dir = Path::new(matches.value_of("dat-dir").unwrap());
     match matches.subcommand() {
         ("init", Some(_subm)) => {
-            let drive = DatDrive::create(dir)?;
+            let _drive = DatDrive::create(dir)?;
             // TODO: print public key in hex
             println!("Done!");
         }
@@ -81,6 +87,15 @@ fn run() -> Result<()> {
             };
             drive.import_file(&path, &fpath)?;
 
+        }
+        ("export-file", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            let fpath = match subm.value_of("target") {
+                None => Path::new("/").join(path.file_name().unwrap()),
+                Some(p) => Path::new("/").join(p)
+            };
+            drive.export_file(&path, &fpath)?;
         }
         ("cat", Some(subm)) => {
             let path = Path::new(subm.value_of("FILE").unwrap());
