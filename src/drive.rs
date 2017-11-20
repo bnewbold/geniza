@@ -516,7 +516,7 @@ impl<'a> DatDrive {
     }
 
     /// Returns version number of completed action on success.
-    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<u64> {
+    pub fn copy_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<u64> {
         let from = from.as_ref();
         let to = to.as_ref();
         if from == to {
@@ -541,7 +541,7 @@ impl<'a> DatDrive {
         // Crude implementation:
         // 1. copy file
         let from = from.as_ref();
-        self.copy(from, to)?;
+        self.copy_file(from, to)?;
 
         // 2. delete the original
         self.remove_file(from)
@@ -741,14 +741,14 @@ fn test_dd_remove_dir_all() {
 }
 
 #[test]
-fn test_dd_copy() {
+fn test_dd_copy_file() {
 
     use tempdir::TempDir;
     let tmp_dir = TempDir::new("geniza-test").unwrap();
     let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
 
     dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
-    dd.copy("/a", "/c").unwrap();
+    dd.copy_file("/a", "/c").unwrap();
     assert_eq!(dd.history(0).count(), 2);
     assert!(&dd.read_file_bytes("/a").is_ok());
     assert!(&dd.read_file_bytes("/c").is_ok());

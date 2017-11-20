@@ -7,7 +7,6 @@ extern crate env_logger;
 extern crate error_chain;
 extern crate geniza;
 
-// TODO: more careful import
 use geniza::*;
 use std::path::Path;
 use clap::{App, Arg, SubCommand};
@@ -17,13 +16,12 @@ fn run() -> Result<()> {
 
     let matches = App::new("geniza-drive")
         .version(env!("CARGO_PKG_VERSION"))
-        // TODO: dat-dir for all commands up here, and have a default vaule ('./dat')
         .arg(Arg::with_name("dat-dir")
             .short("d")
             .long("dat-dir")
             .value_name("PATH")
             .help("dat drive directory")
-            .default_value(".dat") // TODO: needs to be default_value_os?
+            .default_value(".dat")
             .takes_value(true))
         .subcommand(
             SubCommand::with_name("init")
@@ -62,6 +60,22 @@ fn run() -> Result<()> {
             SubCommand::with_name("dump-entries")
                 .about("Dump all entries in a debug-friendly format")
         )
+        .subcommand(
+            SubCommand::with_name("copy")
+                .about("Internally copies a file in a dat archive")
+                .arg_from_usage("<FROM> 'path to copy from'")
+                .arg_from_usage("<TO> 'path to copy from'")
+        )
+        .subcommand(
+            SubCommand::with_name("remove")
+                .about("Deletes a file path from dat archive")
+                .arg_from_usage("<FILE> 'file to delete'")
+        )
+        .subcommand(
+            SubCommand::with_name("remove-dir-all")
+                .about("Recursively deletes a directory from the dat archive")
+                .arg_from_usage("<PATH> 'directory to delete'")
+        )
         .get_matches();
 
     let dir = Path::new(matches.value_of("dat-dir").unwrap());
@@ -77,6 +91,14 @@ fn run() -> Result<()> {
                 let entry = entry?;
                 println!("{}", entry.path.display());
             }
+        }
+        ("cat", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            let data = drive.read_file_bytes(&path)?;
+            // TODO: just write to stdout
+            let s = String::from_utf8(data).unwrap();
+            println!("{}", s);
         }
         ("import-file", Some(subm)) => {
             let path = Path::new(subm.value_of("FILE").unwrap());
@@ -96,15 +118,6 @@ fn run() -> Result<()> {
                 Some(p) => Path::new("/").join(p)
             };
             drive.export_file(&path, &fpath)?;
-        }
-        ("cat", Some(subm)) => {
-            let path = Path::new(subm.value_of("FILE").unwrap());
-            let mut drive = DatDrive::open(dir, true)?;
-            let data = drive.read_file_bytes(&path)?;
-            // TODO: just write to stdout
-            let s = String::from_utf8(data).unwrap();
-            println!("{}", s);
-
         }
         ("log", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;
@@ -142,6 +155,22 @@ fn run() -> Result<()> {
                     println!("\tstat: None (delete)");
                 }
             }
+        }
+        ("copy", Some(subm)) => {
+            let from_path= Path::new(subm.value_of("FROM").unwrap());
+            let to_path= Path::new(subm.value_of("FROM").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            drive.copy_file(&from_path, &to_path)?;
+        }
+        ("remove", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            drive.remove_file(&path)?;
+        }
+        ("remove-dir-all", Some(subm)) => {
+            let path = Path::new(subm.value_of("FILE").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            drive.remove_dir_all(&path)?;
         }
         _ => {
             println!("Missing or unimplemented command!");
