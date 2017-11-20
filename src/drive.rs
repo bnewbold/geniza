@@ -237,6 +237,10 @@ impl<'a> DatDrive {
         // 2. find longest common prefix; take all entries from that level
         let mut common_components = longest_common_prefix(path, &current.path);
         assert!(common_components >= 1);
+        if current.children.len() == 0 {
+            // Empty drive tree
+            return Ok(None);
+        }
         let mut entries = current.children[(common_components-1) as usize].clone();
 
         // 3. for each of those entries (going in recent-first order):
@@ -345,13 +349,27 @@ impl<'a> DatDrive {
         stat.set_blocks(data_entries);
         stat.set_offset(data_offset);
         stat.set_byteOffset(data_byte_offset);
-        return self.append_metadata_entry(&path, Some(&stat));
+        return self.append_metadata_entry(&path, Some(&stat), None);
     }
 
-    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: Option<&Stat>) -> Result <()> {
+    /// If this metadata entry represents a change (overwriting a previous entry), then `remove`
+    /// should be set to the old index.
+    /// If this entry is a deletion/removal, `remove` should be set and `stat` should be None.
+    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: Option<&Stat>, remove: Option<u64>) -> Result <()> {
         let index = self.entry_count()? + 1;
         let path = path.as_ref();
-        let children = self.new_child_index(&path, index)?;
+        let mut children = self.new_child_index(&path, index)?;
+        if remove.is_some() {
+            // This is a removal; delete both current and old from all children
+            // (Vec.remove_item() is still nightly)
+            for dir_level in 0..children.len() {
+                children[dir_level].retain(
+                    |&x| x != remove.unwrap() && (x != index || stat.is_some()));
+            }
+
+            // Cleanup by removing trailing empty dir levels
+            children.retain(|ref x| x.len() > 0);
+        }
         let children = encode_children(&children, index)?;
         let mut node = Node::new();
         node.set_name(path.to_string_lossy().into_owned());
@@ -403,7 +421,6 @@ impl<'a> DatDrive {
         Ok(children)
     }
 
-    // XXX: needs test
     /// Copies Stat metadata and all content from a file in the "real" filesystem into the
     /// DatDrive.
     pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
@@ -419,7 +436,6 @@ impl<'a> DatDrive {
         self.add_file(dest, &mut stat, in_file)
     }
 
-    // XXX: needs test
     /// Copies a file from the drive to the "real" filesystem, preserving Stat metadata.
     pub fn export_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
 
@@ -470,18 +486,16 @@ impl<'a> DatDrive {
         Ok(())
     }
 
-    // XXX: needs test
     pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path = path.as_ref();
         let current = self.get_file_entry(path)?;
         if let Some(val) = current {
-            return self.append_metadata_entry(&val.path, None);
+            return self.append_metadata_entry(&val.path, None, Some(val.index));
         } else {
             bail!("Tried to delete non-existant file: {}", path.display());
         }
     }
 
-    // XXX: needs test
     pub fn remove_dir_all<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         // Crude implementation:
         // 1. get list of all file paths
@@ -495,7 +509,6 @@ impl<'a> DatDrive {
         Ok(())
     }
 
-    // XXX: needs test
     pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()> {
         let from = from.as_ref();
         let to = to.as_ref();
@@ -513,10 +526,9 @@ impl<'a> DatDrive {
         } else {
             bail!("'from' file was deleted");
         };
-        return self.append_metadata_entry(&to, Some(&stat));
+        return self.append_metadata_entry(&to, Some(&stat), None);
     }
 
-    // XXX: needs test
     pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()> {
         // Crude implementation:
         // 1. copy file
@@ -650,6 +662,103 @@ fn test_dd_read_file_bytes() {
 }
 */
 
+#[test]
+fn test_dd_import_file() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+    dd.import_file("test-data/dat/alphabet/b", "/subdir/b.txt").unwrap();
+
+    assert_eq!(dd.history(0).count(), 2);
+    assert_eq!(&dd.read_file_bytes("/a").unwrap()[..],
+               "a".as_bytes());
+    assert_eq!(&dd.read_file_bytes("/subdir/b.txt").unwrap()[..],
+               "b".as_bytes());
+
+    assert!(dd.import_file("/non-existant-file-path", "/z").is_err());
+}
+
+#[test]
+fn test_dd_export_file() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+
+    dd.export_file("/a", tmp_dir.path().join("a.txt")).unwrap();
+    assert!(dd.export_file("/z", tmp_dir.path().join("never-created")).is_err());
+}
+
+#[test]
+fn test_dd_remove_file() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+    dd.import_file("test-data/dat/alphabet/b", "/b").unwrap();
+    assert_eq!(dd.read_dir("/").count(), 2);
+
+    dd.remove_file("/a").unwrap();
+    assert_eq!(dd.read_dir_recursive("/").count(), 1);
+    dd.remove_file("/b").unwrap();
+    assert_eq!(dd.read_dir("/").count(), 0);
+    assert!(&dd.read_file_bytes("/b").is_err());
+
+    assert!(dd.remove_file("/a").is_err());
+}
+
+#[test]
+fn test_dd_remove_dir_all() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+    dd.import_file("test-data/dat/alphabet/b", "/sub/b").unwrap();
+    dd.import_file("test-data/dat/alphabet/c", "/sub/c").unwrap();
+    dd.import_file("test-data/dat/alphabet/d", "/sub/sub/d").unwrap();
+    assert_eq!(dd.read_dir_recursive("/").count(), 4);
+
+    dd.remove_dir_all("/sub").unwrap();
+    assert_eq!(dd.read_dir_recursive("/").count(), 1);
+    assert!(&dd.read_file_bytes("/sub/b").is_err());
+}
+
+#[test]
+fn test_dd_copy() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+    dd.copy("/a", "/c").unwrap();
+    assert_eq!(dd.history(0).count(), 2);
+    assert!(&dd.read_file_bytes("/a").is_ok());
+    assert!(&dd.read_file_bytes("/c").is_ok());
+}
+
+#[test]
+fn test_dd_rename() {
+
+    use tempdir::TempDir;
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+    dd.rename("/a", "/c").unwrap();
+    assert_eq!(dd.read_dir("/").count(), 1);
+    assert!(&dd.read_file_bytes("/a").is_err());
+}
+
 #[derive(Debug)]
 pub struct DriveEntry {
     pub index: u64,
@@ -701,9 +810,14 @@ impl<'a> ReadDriveDir<'a> {
             // start at the latest entry with the same path prefix
             match drive.get_nearest(path)? {
                 Some(nearest) => {
-                    let common_components = longest_common_prefix(path, nearest.path);
-                    let list = nearest.children[(common_components - 1) as usize].clone();
-                    list.iter().map(|e| (common_components, *e)).collect()
+                    if nearest.children.len() == 0 {
+                        // Empty tree
+                        vec![]
+                    } else {
+                        let common_components = longest_common_prefix(path, nearest.path);
+                        let list = nearest.children[(common_components - 1) as usize].clone();
+                        list.iter().map(|e| (common_components, *e)).collect()
+                    }
                 },
                 None => vec![],
             }
