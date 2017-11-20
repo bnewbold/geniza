@@ -316,12 +316,13 @@ impl<'a> DatDrive {
         }
     }
 
-    pub fn add_file_bytes<P: AsRef<Path>>(&mut self, path: P, stat: &mut Stat, data: &[u8]) -> Result<()> {
+    /// On success, returns version number including the added data.
+    pub fn add_file_bytes<P: AsRef<Path>>(&mut self, path: P, stat: &mut Stat, data: &[u8]) -> Result<u64> {
         self.add_file(path, stat, data)
     }
 
-    // TODO: return version
-    pub fn add_file<P: AsRef<Path>, R: Read>(&mut self, path: P, stat: &mut Stat, mut source: R) -> Result<()> {
+    /// On success, returns version number including the added file.
+    pub fn add_file<P: AsRef<Path>, R: Read>(&mut self, path: P, stat: &mut Stat, mut source: R) -> Result<u64> {
         // TODO: canonicalize path
         // TODO: check if file already exists
         let mut total_size: u64 = 0;
@@ -355,7 +356,7 @@ impl<'a> DatDrive {
     /// If this metadata entry represents a change (overwriting a previous entry), then `remove`
     /// should be set to the old index.
     /// If this entry is a deletion/removal, `remove` should be set and `stat` should be None.
-    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: Option<&Stat>, remove: Option<u64>) -> Result <()> {
+    fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: Option<&Stat>, remove: Option<u64>) -> Result<u64> {
         let index = self.entry_count()? + 1;
         let path = path.as_ref();
         let mut children = self.new_child_index(&path, index)?;
@@ -378,7 +379,7 @@ impl<'a> DatDrive {
         }
         node.set_paths(children);
         self.metadata.append(&node.write_to_bytes()?)?;
-        return Ok(());
+        return Ok(index);
     }
 
     fn new_child_index<P: AsRef<Path>>(&mut self, path: P, index: u64) -> Result<Vec<Vec<u64>>> {
@@ -423,7 +424,8 @@ impl<'a> DatDrive {
 
     /// Copies Stat metadata and all content from a file in the "real" filesystem into the
     /// DatDrive.
-    pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
+    /// On success, returns version number including the added file.
+    pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<u64> {
         let in_file = File::open(source)?;
         let in_metadata = in_file.metadata()?;
         let mut stat = Stat::new();
@@ -486,7 +488,8 @@ impl<'a> DatDrive {
         Ok(())
     }
 
-    pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    /// Returns version number containing completed removal on success.
+    pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<u64> {
         let path = path.as_ref();
         let current = self.get_file_entry(path)?;
         if let Some(val) = current {
@@ -496,20 +499,24 @@ impl<'a> DatDrive {
         }
     }
 
-    pub fn remove_dir_all<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    /// Returns version number containing completed removal on success.
+    /// Partial success (returning an error) leaves the drive in an undefined state.
+    pub fn remove_dir_all<P: AsRef<Path>>(&mut self, path: P) -> Result<u64> {
         // Crude implementation:
         // 1. get list of all file paths
         let path = path.as_ref();
         let files: Vec<PathBuf> = self.read_dir_recursive(path).map(|de| de.unwrap().path).collect();
 
         // 2. remove each
+        let mut last_version = 0;
         for f in files {
-            self.remove_file(&f)?;
+            last_version= self.remove_file(&f)?;
         }
-        Ok(())
+        Ok(last_version)
     }
 
-    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()> {
+    /// Returns version number of completed action on success.
+    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<u64> {
         let from = from.as_ref();
         let to = to.as_ref();
         if from == to {
@@ -529,7 +536,8 @@ impl<'a> DatDrive {
         return self.append_metadata_entry(&to, Some(&stat), None);
     }
 
-    pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<()> {
+    /// Returns version number containing rename action on success.
+    pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, from: P, to: Q) -> Result<u64> {
         // Crude implementation:
         // 1. copy file
         let from = from.as_ref();
