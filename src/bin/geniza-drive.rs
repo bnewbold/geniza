@@ -7,6 +7,9 @@ extern crate env_logger;
 extern crate error_chain;
 extern crate geniza;
 
+#[cfg(test)]
+extern crate assert_cli;
+
 use geniza::*;
 use std::path::Path;
 use clap::{App, Arg, SubCommand};
@@ -182,3 +185,40 @@ fn run() -> Result<()> {
 }
 
 quick_main!(run);
+
+#[test]
+fn test_drive_cmd() {
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "/non-existant-dir", "ls"])
+        .fails();
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "test-data/dat/simple/.dat", "ls"])
+        .stdout().contains("README.md")
+        .succeeds();
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "test-data/dat/tree/.dat", "ls"])
+        .stdout().contains("Cantharellu")
+        .succeeds();
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "test-data/dat/alphabet/.dat", "cat", "/c"])
+        .stdout().is("c")
+        .succeeds();
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "test-data/dat/simple/.dat", "log"])
+        .stdout().contains("Felidae")
+        .succeeds();
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "test-data/dat/tree/.dat", "verify"])
+        .succeeds();
+
+    assert_cli::Assert::cargo_binary("geniza-drive")
+        .with_args(&["-d", "test-data/dat/tree/.dat", "dump-entries"])
+        .succeeds();
+
+}
