@@ -785,7 +785,7 @@ impl<'a> Iterator for DriveHistory<'a> {
     type Item = Result<DriveEntry>;
     fn next(&mut self) -> Option<Result<DriveEntry>> {
         // pubkey increment-by-one logic here
-        // XXX: unwrap. on error, return Some(err), then None?
+        // TODO: unwrap. on error, return Some(err), then None?
         if self.current > self.drive.entry_count().unwrap() {
             return None;
         }
