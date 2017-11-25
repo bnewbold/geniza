@@ -18,3 +18,10 @@ The current path counts as an entry (eg, "/README" decomposes to "/" and
 
 Entry indexes are effectively 1-based (0 is the pubkey entry); don't correct
 for this.
+
+In children:
+- Changes/edits to a path entirely replace the old entry index with the new
+  index.
+- removals of an entry are done by writing a new entry with the same path, no
+  stat data, and with all child paths removed (of this index and the old
+  index).

@@ -1,25 +1,22 @@
 
 next:
-- file check in/out
-- drive: deletion
-- drive: think through child index creation
-- drive+network sync
-- drive+network broadcast
-- bitfield stuff (un-indexed)
-    https://docs.rs/bit_field/0.8.0/bit_field/trait.BitArray
+- crude single-thread drive+network clone
+- crude single-thread drive+network broadcast
+- drive: checkout all latest files
+- SLEEP bitfields stuff
+- .latest and .ogd files
+- sparse insert into SLEEP/drive
 - secret_key-in-home helpers (read/write)
+- multi-connection network sync (per-connection state, etc)
+- duplicate file/chunk optimizations
 - 'geniza clone' command
 - 'geniza checkout' command
 - 'geniza init', 'geniza commit' commands
 - 'geniza broadcast' command
 - API to link and run from, eg, python
 
-meta:
-- travis tests (linux, osx)
-
-misc:
-
 specific tests:
+- drive children array: deep directory nesting (like 'tree' example)
 - sleep info a variety of bad sleep files, should error
 - sleep create a known file, should be same as empty (also a "Rot13" algo file)
 - create a register, binary compare against known-good
@@ -27,6 +24,10 @@ specific tests:
 - test vectors of signatures
 - cloning with metadata pointing to relative or absolute paths
   ("dir/../../../../etc/passwd")
+
+trivial performance:
+- cache SLEEP file length when opened (don't fstat all the time)
+- keep an LRU cache of SLEEP reads
 
 APIs:
 - trait: register
@@ -37,23 +38,13 @@ APIs:
 - peer (multiple transit types)
 - synchronizer (register, peers, discovery)
 
-Old API:
-sleep: SLEEP file I/O
-register: hypercore registers/journal streams, signing
-drive: hyperdrive
-sync: dat network protocol, discover
-geniza: command line, swarm
-
-
-
 Backburner:
 - benchmarks! syscall counts (strace), timing, etc
 - test fault injection... with strace?
 - consider kafka (append performance) and sqlite (robustness) file I/O patterns
 - manpage
 - slog for logging
-- lru caches
-- disable sodiumoxide serde feature
+- disable sodiumoxide serde feature (faster/smaller build)
 - sodiumoxide static link
     https://safenetforum.org/t/building-a-non-dynamically-linked-executable-of-safe-vault/9811/6
 - SLEEP API: should just be empty string for algo-name, not Option<>
@@ -70,3 +61,8 @@ Backburner:
 - turn magic numbers in tree nodes into declared (public?) constants
 - root_nodes as an iterator? (vs returning a Vec)
 - pretty terminal output: https://crates.io/crates/colored
+- error handling best practices:
+    https://rust-lang-nursery.github.io/rust-cookbook/basics.html#obtain-backtrace-of-complex-error-scenarios
+- debug commands with hex i/o:
+    https://github.com/ia0/data-encoding
+- sendfile() or splice() for disk-to-disk copying?

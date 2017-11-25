@@ -7,3 +7,8 @@ https://nacl.cr.yp.to/stream.html
 https://github.com/maidsafe/rust_sodium
 https://groups.google.com/forum/#!original/boring-crypto/BpUmNMXKMYQ/EEwAIeQdjacJ
 
+
+TLS is a pain, but if it (or some other standard) was used instead of the
+current libsodium, it might be possible in the future to get kernel-mode
+encryption going.
+

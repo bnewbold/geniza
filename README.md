@@ -28,7 +28,7 @@ it will eat-your-data!
     - [x] read file tree ("ls")
     - [x] import file to register
     - [x] export file from register
-    - [ ] import/export directories recursively
+    - [x] import/export directories recursively
 - [ ] Networking
     - [x] send/receive encrypted messages to a known host
     - [ ] receive entire register from a known host

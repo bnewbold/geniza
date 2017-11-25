@@ -1,0 +1,6 @@
+
+possible upstream bug:
+    => sync data in subdir
+    => stop client
+    => remove entire dir
+    => doesn't `del` on later sync
