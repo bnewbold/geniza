@@ -52,6 +52,18 @@ fn run() -> Result<()> {
                 .arg_from_usage("--target <path> 'path to save the file to (if not same name)'")
         )
         .subcommand(
+            SubCommand::with_name("import-dir")
+                .about("Adds a directory (recursively) to the dat")
+                .arg_from_usage("<DIR> 'directory to add'")
+                .arg_from_usage("--target <path> 'path to import the file to (if not top level)'")
+        )
+        .subcommand(
+            SubCommand::with_name("export-dir")
+                .about("Copies a directory (recursively) from dat archive to local disk")
+                .arg_from_usage("<DIR> 'directory to export'")
+                .arg_from_usage("--target <path> 'path to save the directory to (if not same name)'")
+        )
+        .subcommand(
             SubCommand::with_name("log")
                 .about("History of additions/deletions from this dat")
         )
@@ -121,6 +133,25 @@ fn run() -> Result<()> {
                 Some(p) => Path::new("/").join(p)
             };
             drive.export_file(&path, &fpath)?;
+        }
+        ("import-dir", Some(subm)) => {
+            let path = Path::new(subm.value_of("DIR").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            let fpath = match subm.value_of("target") {
+                None => Path::new("/").join(path.file_name().unwrap()),
+                Some(p) => Path::new("/").join(p)
+            };
+            drive.import_dir(&path, &fpath)?;
+
+        }
+        ("export-dir", Some(subm)) => {
+            let path = Path::new(subm.value_of("DIR").unwrap());
+            let mut drive = DatDrive::open(dir, true)?;
+            let fpath = match subm.value_of("target") {
+                None => Path::new("/").join(path.file_name().unwrap()),
+                Some(p) => Path::new("/").join(p)
+            };
+            drive.export_dir(&path, &fpath)?;
         }
         ("log", Some(_subm)) => {
             let mut drive = DatDrive::open(dir, false)?;

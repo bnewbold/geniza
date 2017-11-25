@@ -464,6 +464,56 @@ impl<'a> DatDrive {
         Ok(())
     }
 
+    /// Copies Stat metadata and all content from a directory (recursively) from the "real"
+    /// filesystem into the DatDrive.
+    /// On success, returns version number including all the added files.
+    pub fn import_dir<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<u64> {
+        let source = source.as_ref();
+        let dest = dest.as_ref();
+        // TODO: check that dest doesn't exist (or is directory)
+        let nearest = self.get_nearest(dest)?;
+        if let Some(nearest) = nearest {
+            if nearest.path == dest {
+                bail!("destination already exists (as a file)");
+            }
+        }
+        let mut ret = self.entry_count()?;
+        if source.is_dir() {
+            for entry in read_dir(source)? {
+                let entry = entry?;
+                let path = entry.path();
+                let fname = path.file_name().unwrap().to_owned();
+                if fname.to_str() == Some(".dat") {
+                    // Don't import yourself!
+                    continue
+                }
+                if path.is_dir() {
+                    ret = self.import_dir(path, dest.join(fname))?;
+                } else {
+                    ret = self.import_file(path, dest.join(fname))?;
+                }
+            }
+        } else {
+            bail!("Source path wasn't a directory");
+        }
+        Ok(ret)
+    }
+
+    /// Copies a file from the drive to the "real" filesystem, preserving Stat metadata.
+    pub fn export_dir<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
+        let source = source.as_ref();
+        let dest = dest.as_ref();
+        // TODO: this collect() is inefficient; read doesn't mutate, so shouldn't really need a
+        // mutable borrow
+        let path_list: Vec<Result<DriveEntry>> = self.read_dir_recursive(source).collect();
+        for entry in path_list {
+            let path = entry?.path.to_owned();
+            let out_path = dest.join(path.strip_prefix(source).unwrap());
+            self.export_file(path, out_path)?;
+        }
+        Ok(())
+    }
+
     pub fn read_file_bytes<P: AsRef<Path>>(&mut self, path: P) -> Result<Vec<u8>> {
         let de = self.get_file_entry(path.as_ref())?;
         if let Some(entry) = de {
@@ -700,6 +750,41 @@ fn test_dd_export_file() {
 
     dd.export_file("/a", tmp_dir.path().join("a.txt")).unwrap();
     assert!(dd.export_file("/z", tmp_dir.path().join("never-created")).is_err());
+}
+
+#[test]
+fn test_dd_import_dir() {
+
+    use tempdir::TempDir;
+    use env_logger;
+    env_logger::init().unwrap();
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_dir("test-data/dat/tree/Animalia/", "/").unwrap();
+
+    assert_eq!(dd.read_dir("/").count(), 0);
+    assert_eq!(dd.read_dir_recursive("/").count(), 2);
+
+    dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
+    assert!(dd.import_dir("test-data/dat/tree/Animalia/", "/a/").is_err());
+
+}
+
+#[test]
+fn test_dd_export_dir() {
+
+    use tempdir::TempDir;
+    //use env_logger;
+    //env_logger::init().unwrap();
+    let tmp_dir = TempDir::new("geniza-test").unwrap();
+    let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
+
+    dd.import_dir("test-data/dat/tree/Animalia/", "/").unwrap();
+
+    dd.export_dir("/", tmp_dir.path()).unwrap();
+    dd.export_dir("/Chordata/Mammalia/Carnivora/Caniformia/", tmp_dir.path()).unwrap();
+    //assert!(dd.export_dir("/Fruit/", tmp_dir.path()).is_err());
 }
 
 #[test]
