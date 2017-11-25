@@ -2,7 +2,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, read_dir, create_dir_all};
 use std::cmp::min;
 use std::ffi::OsStr;
 use protobuf::Message;
@@ -359,13 +359,14 @@ impl<'a> DatDrive {
     fn append_metadata_entry<P: AsRef<Path>>(&mut self, path: P, stat: Option<&Stat>, remove: Option<u64>) -> Result<u64> {
         let index = self.entry_count()? + 1;
         let path = path.as_ref();
-        let mut children = self.new_child_index(&path, index)?;
+        let mut children = self.new_child_index(&path,
+            if stat.is_some() { Some(index) } else { None })?;
         if remove.is_some() {
             // This is a removal; delete both current and old from all children
             // (Vec.remove_item() is still nightly)
             for dir_level in 0..children.len() {
                 children[dir_level].retain(
-                    |&x| x != remove.unwrap() && (x != index || stat.is_some()));
+                    |&x| x != remove.unwrap());
             }
 
             // Cleanup by removing trailing empty dir levels
@@ -382,7 +383,9 @@ impl<'a> DatDrive {
         return Ok(index);
     }
 
-    fn new_child_index<P: AsRef<Path>>(&mut self, path: P, index: u64) -> Result<Vec<Vec<u64>>> {
+    /// If index is included, it will be inserted at every level, replacing the previous ("nearest")
+    /// pointer at that path
+    fn new_child_index<P: AsRef<Path>>(&mut self, path: P, index: Option<u64>) -> Result<Vec<Vec<u64>>> {
 
         let path = path.as_ref();
         let path_len = path.iter().count() as u64;
@@ -394,7 +397,9 @@ impl<'a> DatDrive {
             let prefix = Path::new("/").join(prefix.join("/"));
             let nearest = match self.get_nearest(prefix)? {
                 None => {
-                    children.push(vec![index]);
+                    if let Some(i) = index {
+                        children.push(vec![i]);
+                    }
                     depth += 1;
                     continue;
                 },
@@ -404,15 +409,24 @@ impl<'a> DatDrive {
             let common = longest_common_prefix(path, &nearest.path);
             // (assuming we had any new common components; if not, fill in with outself)
             if common <= depth {
-                for _ in depth..path_len {
-                    children.push(vec![index]);
+                if let Some(i) = index {
+                    for _ in depth..path_len {
+                        children.push(vec![i]);
+                    }
                 }
                 break;
             }
             for i in depth..common {
                 let mut component_entries = nearest.children[i as usize].clone();
-                // 3. add this entry to each component
-                component_entries.push(index);
+                // 3. add this entry to each component...
+                if let Some(idx) = index {
+                    if i + 1 < common {
+                        // ... while removing previous ("nearest") path component in all but last
+                        // directory
+                        component_entries.retain(|&e| e != nearest.index);
+                    }
+                    component_entries.push(idx);
+                }
                 children.push(component_entries);
             }
             // 4. loop for remaining components
@@ -426,6 +440,7 @@ impl<'a> DatDrive {
     /// DatDrive.
     /// On success, returns version number including the added file.
     pub fn import_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<u64> {
+        info!("importing file: '{:?}' as '{:?}'", source.as_ref(), dest.as_ref());
         let in_file = File::open(source)?;
         let in_metadata = in_file.metadata()?;
         let mut stat = Stat::new();
@@ -439,12 +454,20 @@ impl<'a> DatDrive {
     }
 
     /// Copies a file from the drive to the "real" filesystem, preserving Stat metadata.
+    /// 'dest' must be a file, not a directory.
     pub fn export_file<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
-
+        info!("exporting file: '{:?}' as '{:?}'", source.as_ref(), dest.as_ref());
         let source = source.as_ref();
+        let dest = dest.as_ref();
         let de = self.get_file_entry(source)?;
         if let Some(entry) = de {
             let stat = entry.stat.unwrap();
+            // create enclosing directory if it doesn't exist
+            // TODO: this could be more efficient as an "attempt, create dir if not exists"
+            let dir = dest.parent().unwrap();
+            if !dir.is_dir() {
+                create_dir_all(dir)?;
+            }
             let mut out_file = OpenOptions::new()
                 .create_new(true)
                 .write(true)
@@ -814,6 +837,7 @@ fn test_dd_remove_dir_all() {
     let tmp_dir = TempDir::new("geniza-test").unwrap();
     let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
 
+    // This is also a regression test for `ls`
     dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
     dd.import_file("test-data/dat/alphabet/b", "/sub/b").unwrap();
     dd.import_file("test-data/dat/alphabet/c", "/sub/c").unwrap();
@@ -966,10 +990,10 @@ impl<'a> Iterator for ReadDriveDir<'a> {
                     }
                 }
                 // ... else add child path entries and recurse
-                for subdir in ((depth+1) as usize)..entry.children.len() {
+                for subdir in (depth as usize)..entry.children.len() {
                     let mut new_children: Vec<(u64, u64)> = entry.children[subdir].iter()
                         .filter(|&e| (*e != entry.index || subdir == entry.children.len()))
-                        .map(|&e| (subdir as u64, e))
+                        .map(|&e| (subdir as u64 + 1, e))
                         .collect();
                     self.entries.append(&mut new_children);
                 }
