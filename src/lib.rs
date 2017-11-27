@@ -52,3 +52,21 @@ mod protocol;
 pub use protocol::*;
 pub mod network_msgs;
 pub mod metadata_msgs;
+
+
+use crypto::digest::Digest;
+use crypto::blake2b::Blake2b;
+
+/// Helper to calculate a discovery key from a public key. 'key' should be 32 bytes; the returned
+/// array will also be 32 bytes long.
+///
+/// dat discovery keys are calculated as a BLAKE2b "keyed hash" (using the passed key) of the string
+/// "hypercore" (with no trailing null byte).
+pub fn make_discovery_key(key: &[u8]) -> Vec<u8> {
+    let mut discovery_key = [0; 32];
+    let mut hash = Blake2b::new_keyed(32, key);
+    hash.input(&"hypercore".as_bytes());
+    hash.result(&mut discovery_key);
+    discovery_key.to_vec()
+}
+

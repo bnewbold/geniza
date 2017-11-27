@@ -13,7 +13,7 @@ use rand::{OsRng, Rng};
 
 use errors::*;
 use sleep_file::*;
-use protocol::make_discovery_key;
+use make_discovery_key;
 
 /// Abstract access to Hypercore register
 pub trait HyperRegister {

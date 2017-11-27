@@ -3,8 +3,6 @@ use std::net::TcpStream;
 use std::time::Duration;
 use std::io::{Read, Write};
 use std::cmp;
-use crypto::digest::Digest;
-use crypto::blake2b::Blake2b;
 use sodiumoxide::crypto::stream::*;
 use rand::{OsRng, Rng};
 use protobuf::Message;
@@ -14,6 +12,7 @@ use integer_encoding::{VarIntReader, VarIntWriter};
 use errors::*;
 use network_msgs::*;
 use metadata_msgs::Index;
+use make_discovery_key;
 
 #[derive(Debug)]
 pub enum DatNetMessage {
@@ -128,16 +127,6 @@ fn test_bsxii_continued() {
     bytewise_stream_xor_ic_inplace(&mut a[500..1234], 500, &nonce, &key);
     bytewise_stream_xor_ic_inplace(&mut a, 0, &nonce, &key);
     assert_eq!(a, c);
-}
-
-// TODO: move to lib.rs?
-pub fn make_discovery_key(key: &[u8]) -> Vec<u8> {
-    // calculate discovery key
-    let mut discovery_key = [0; 32];
-    let mut hash = Blake2b::new_keyed(32, key);
-    hash.input(&"hypercore".as_bytes());
-    hash.result(&mut discovery_key);
-    discovery_key.to_vec()
 }
 
 /// Represents a bi-directional connection to a network peer
