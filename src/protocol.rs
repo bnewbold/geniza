@@ -261,7 +261,7 @@ impl DatConnection {
         Ok(dc)
     }
 
-    fn send_msg(&mut self, dnm: &DatNetMessage, is_content: bool) -> Result<()> {
+    pub fn send_msg(&mut self, dnm: &DatNetMessage, is_content: bool) -> Result<()> {
         let header_int: u8 = (is_content as u8) << 4 | (msg_code(dnm) & 0x0F);
         let msg: &Message = msg_sugar(dnm);
         let total_message_size = (msg.compute_size() as usize) + 1;
@@ -293,7 +293,7 @@ impl DatConnection {
         Ok(())
     }
 
-    fn recv_msg(&mut self) -> Result<(bool, DatNetMessage)> {
+    pub fn recv_msg(&mut self) -> Result<(bool, DatNetMessage)> {
         let total_len: u64 = self.read_varint()?;
         let header: u8 = self.read_varint()?;
 

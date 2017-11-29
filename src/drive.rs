@@ -15,8 +15,8 @@ use metadata_msgs::{Index, Stat, Node};
 
 /// "Sort of" follows rust std::fs API for file system access.
 pub struct DatDrive {
-    metadata: SleepDirRegister,
-    content: SleepDirRegister,
+    pub metadata: SleepDirRegister,
+    pub content: SleepDirRegister,
 }
 
 impl DatDrive {
@@ -178,7 +178,7 @@ impl<'a> DatDrive {
 
     /// Returns number of drive metadata entries (not including the first entry, which is the
     /// content register public key)
-    fn entry_count(&mut self) -> Result<u64> {
+    pub fn entry_count(&mut self) -> Result<u64> {
         Ok(self.metadata.len()? - 1)
     }
 
