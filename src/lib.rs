@@ -23,6 +23,7 @@ extern crate log;
 extern crate protobuf;
 extern crate rand;
 extern crate sodiumoxide;
+extern crate bit_field;
 
 #[cfg(test)]
 extern crate tempdir;
@@ -52,8 +53,10 @@ mod protocol;
 pub use protocol::*;
 pub mod network_msgs;
 pub mod metadata_msgs;
+mod node;
+pub use node::*;
 
-
+// Shared functions
 use crypto::digest::Digest;
 use crypto::blake2b::Blake2b;
 

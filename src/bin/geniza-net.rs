@@ -55,6 +55,19 @@ fn run() -> Result<()> {
                 .about("Prints the DNS name to query (mDNS or centrally) for peers")
                 .arg_from_usage("<dat_key> 'dat key (public key) to convert (in hex)'"),
         )
+        .subcommand(
+            SubCommand::with_name("naive-clone")
+                .about("Pulls a drive from a single (known) peer, using a naive algorithm")
+                .arg(Arg::with_name("dat-dir")
+                    .short("d")
+                    .long("dat-dir")
+                    .value_name("PATH")
+                    .help("dat drive directory")
+                    .default_value(".dat")
+                    .takes_value(true))
+                .arg_from_usage("<host_port> 'peer host:port to connect to'")
+                .arg_from_usage("<dat_key> 'dat key (public key) to pull"),
+        )
         .get_matches();
 
 
@@ -112,6 +125,17 @@ fn run() -> Result<()> {
                 print!("{:02x}", disc_key[b]);
             }
             println!(".dat.local");
+        }
+        ("naive-clone", Some(subm)) => {
+            let host_port = subm.value_of("host_port").unwrap();
+            let dat_key = subm.value_of("dat_key").unwrap();
+            let key_bytes = parse_dat_key(&dat_key)?;
+            let dir = Path::new(subm.value_of("dat-dir").unwrap());
+            let mut metadata = SleepDirRegister::create(&dir, "metadata")?;
+            node_simple_clone(host_port, &key_bytes, &mut metadata, false)?;
+            // TODO: read out content key from metadata register
+            //let content = SleepDirRegister::create(&dir, "content")?;
+            //node_simple_clone(host_port, &key_bytes, &mut content, true)?;
         }
         _ => {
             println!("Missing or unimplemented command!");
