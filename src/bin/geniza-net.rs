@@ -9,7 +9,24 @@ extern crate geniza;
 
 // TODO: more careful import
 use geniza::*;
-use clap::{App, SubCommand};
+use std::path::Path;
+use clap::{App, SubCommand, Arg};
+
+fn parse_dat_key(raw_key: &str) -> Result<Vec<u8>> {
+
+    if raw_key.len() != 32 * 2 {
+        bail!("dat key not correct length");
+    }
+    let mut key_bytes = vec![];
+    for i in 0..32 {
+        let r = u8::from_str_radix(&raw_key[2 * i..2 * i + 2], 16);
+        match r {
+            Ok(b) => key_bytes.push(b),
+            Err(e) => bail!("Problem with hex: {}", e),
+        };
+    }
+    Ok(key_bytes)
+}
 
 fn run() -> Result<()> {
     env_logger::init().unwrap();
@@ -65,14 +82,7 @@ fn run() -> Result<()> {
             if dat_key.len() != 32 * 2 {
                 bail!("dat key not correct length");
             }
-            let mut key_bytes = vec![];
-            for i in 0..32 {
-                let r = u8::from_str_radix(&dat_key[2 * i..2 * i + 2], 16);
-                match r {
-                    Ok(b) => key_bytes.push(b),
-                    Err(e) => bail!("Problem with hex: {}", e),
-                };
-            }
+            let key_bytes = parse_dat_key(&dat_key)?;
             let mut dc = DatConnection::connect(host_port, &key_bytes, false)?;
             // XXX: number here totally arbitrary
             dc.receive_all(false, 10)?;
@@ -84,14 +94,7 @@ fn run() -> Result<()> {
             if dat_key.len() != 32 * 2 {
                 bail!("dat key not correct length");
             }
-            let mut key_bytes = vec![];
-            for i in 0..32 {
-                let r = u8::from_str_radix(&dat_key[2 * i..2 * i + 2], 16);
-                match r {
-                    Ok(b) => key_bytes.push(b),
-                    Err(e) => bail!("Problem with hex: {}", e),
-                };
-            }
+            let key_bytes = parse_dat_key(&dat_key)?;
             let disc_key = make_discovery_key(&key_bytes);
             for b in disc_key {
                 print!("{:02x}", b);
@@ -103,14 +106,7 @@ fn run() -> Result<()> {
             if dat_key.len() != 32 * 2 {
                 bail!("dat key not correct length");
             }
-            let mut key_bytes = vec![];
-            for i in 0..32 {
-                let r = u8::from_str_radix(&dat_key[2 * i..2 * i + 2], 16);
-                match r {
-                    Ok(b) => key_bytes.push(b),
-                    Err(e) => bail!("Problem with hex: {}", e),
-                };
-            }
+            let key_bytes = parse_dat_key(&dat_key)?;
             let disc_key = make_discovery_key(&key_bytes);
             for b in 0..20 {
                 print!("{:02x}", disc_key[b]);
