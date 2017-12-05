@@ -490,7 +490,7 @@ impl<'a> DatDrive {
     /// Copies Stat metadata and all content from a directory (recursively) from the "real"
     /// filesystem into the DatDrive.
     /// On success, returns version number including all the added files.
-    pub fn import_dir<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<u64> {
+    pub fn import_dir_all<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<u64> {
         let source = source.as_ref();
         let dest = dest.as_ref();
         // TODO: check that dest doesn't exist (or is directory)
@@ -511,7 +511,7 @@ impl<'a> DatDrive {
                     continue
                 }
                 if path.is_dir() {
-                    ret = self.import_dir(path, dest.join(fname))?;
+                    ret = self.import_dir_all(path, dest.join(fname))?;
                 } else {
                     ret = self.import_file(path, dest.join(fname))?;
                 }
@@ -522,7 +522,7 @@ impl<'a> DatDrive {
         Ok(ret)
     }
 
-    /// Copies a file from the drive to the "real" filesystem, preserving Stat metadata.
+    /// Copies a full directory from the drive to the "real" filesystem, preserving Stat metadata.
     pub fn export_dir<P: AsRef<Path>, Q: AsRef<Path>>(&mut self, source: P, dest: Q) -> Result<()> {
         let source = source.as_ref();
         let dest = dest.as_ref();
@@ -776,7 +776,7 @@ fn test_dd_export_file() {
 }
 
 #[test]
-fn test_dd_import_dir() {
+fn test_dd_import_dir_all() {
 
     use tempdir::TempDir;
     use env_logger;
@@ -784,13 +784,13 @@ fn test_dd_import_dir() {
     let tmp_dir = TempDir::new("geniza-test").unwrap();
     let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
 
-    dd.import_dir("test-data/dat/tree/Animalia/", "/").unwrap();
+    dd.import_dir_all("test-data/dat/tree/Animalia/", "/").unwrap();
 
     assert_eq!(dd.read_dir("/").count(), 0);
     assert_eq!(dd.read_dir_recursive("/").count(), 2);
 
     dd.import_file("test-data/dat/alphabet/a", "/a").unwrap();
-    assert!(dd.import_dir("test-data/dat/tree/Animalia/", "/a/").is_err());
+    assert!(dd.import_dir_all("test-data/dat/tree/Animalia/", "/a/").is_err());
 
 }
 
@@ -803,7 +803,7 @@ fn test_dd_export_dir() {
     let tmp_dir = TempDir::new("geniza-test").unwrap();
     let mut dd = DatDrive::create(tmp_dir.path()).unwrap();
 
-    dd.import_dir("test-data/dat/tree/Animalia/", "/").unwrap();
+    dd.import_dir_all("test-data/dat/tree/Animalia/", "/").unwrap();
 
     dd.export_dir("/", tmp_dir.path()).unwrap();
     dd.export_dir("/Chordata/Mammalia/Carnivora/Caniformia/", tmp_dir.path()).unwrap();
