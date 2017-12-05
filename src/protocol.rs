@@ -60,6 +60,7 @@ fn msg_sugar(msg: &DatNetMessage) -> &Message {
 
 /// This helper is pretty slow/inefficient; lots of copying memory
 fn bytewise_stream_xor_ic_inplace(buf: &mut [u8], byte_offset: u64, nonce: &Nonce, key: &Key) {
+    // TODO: switch to new stream_xor_ic_inplace() variant?
     let mut offset = byte_offset;
 
     // We may have a partial-64-byte-block to finish encrypting first
@@ -70,14 +71,14 @@ fn bytewise_stream_xor_ic_inplace(buf: &mut [u8], byte_offset: u64, nonce: &Nonc
         for i in 0..partial_len {
             partial[partial_offset + i] = buf[i];
         }
-        let partial_enc = stream_xor_ic(&partial, offset / 64, &nonce, &key);
+        let partial_enc = stream_xor_ic(&partial, &nonce, offset / 64, &key);
         offset += partial_len as u64;
         for i in 0..partial_len {
             buf[i] = partial_enc[partial_offset + i];
         }
     }
     if buf.len() > partial_len {
-        let main_enc = stream_xor_ic(&buf[partial_len..], offset / 64, &nonce, &key);
+        let main_enc = stream_xor_ic(&buf[partial_len..], &nonce, offset / 64, &key);
         //offset += main_enc.len() as u64;
         for i in 0..main_enc.len() {
             buf[partial_len + i] = main_enc[i];
