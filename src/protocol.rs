@@ -449,7 +449,7 @@ impl DatConnection {
         }
     }
 
-    pub fn receive_all(&mut self, is_content: bool, length: u64) -> Result<()> {
+    pub fn receive_some(&mut self, is_content: bool, length: u64) -> Result<()> {
         // Info: downloading, not uploading
         let mut im = Info::new();
         im.set_uploading(false);

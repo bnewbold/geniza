@@ -43,7 +43,8 @@ fn run() -> Result<()> {
             SubCommand::with_name("receive-some")
                 .about("Connects to a peer, pulls some metadata and content")
                 .arg_from_usage("<host_port> 'peer host:port to connect to'")
-                .arg_from_usage("<dat_key> 'dat key (public key) to register with'"),
+                .arg_from_usage("<dat_key> 'dat key (public key) to register with'")
+                .arg_from_usage("<count> 'how many entries to pull'"),
         )
         .subcommand(
             SubCommand::with_name("discovery-key")
@@ -87,11 +88,11 @@ fn run() -> Result<()> {
         ("receive-some", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
+            let count: u64 = subm.value_of("count").unwrap().parse().unwrap();
             let key_bytes = parse_dat_key(&dat_key)?;
             let mut dc = DatConnection::connect(host_port, &key_bytes, false)?;
-            // XXX: number here totally arbitrary
-            dc.receive_all(false, 10)?;
-            dc.receive_all(true, 10)?;
+            dc.receive_some(false, count)?;
+            dc.receive_some(true, count)?;
             println!("Done!");
         }
         ("discovery-key", Some(subm)) => {
