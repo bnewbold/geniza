@@ -1,19 +1,14 @@
 
 next:
+- clean up node bitfield implementation
+- "insert" API for HyperRegister
 - crude single-thread drive+network clone
+- sparse register clone
+- "needed data chunks" and progress function?
 - crude single-thread drive+network broadcast
-- drive: checkout all latest files
-- SLEEP bitfields stuff
-- .latest and .ogd files
-- sparse insert into SLEEP/drive
-- secret_key-in-home helpers (read/write)
-- multi-connection network sync (per-connection state, etc)
-- duplicate file/chunk optimizations
 - 'geniza clone' command
 - 'geniza checkout' command
 - 'geniza init', 'geniza commit' commands
-- 'geniza broadcast' command
-- API to link and run from, eg, python
 
 specific tests:
 - drive children array: deep directory nesting (like 'tree' example)
@@ -25,20 +20,20 @@ specific tests:
 - cloning with metadata pointing to relative or absolute paths
   ("dir/../../../../etc/passwd")
 
-trivial performance:
+performance:
 - cache SLEEP file length when opened (don't fstat all the time)
 - keep an LRU cache of SLEEP reads
 
-APIs:
-- trait: register
-- trait: drive
-- SLEEP file
-- SLEEP register
-- SLEEP drive
-- peer (multiple transit types)
-- synchronizer (register, peers, discovery)
-
 Backburner:
+- API to link and run from, eg, python
+- uTP transport
+- in-memory storage backend
+- WASM
+- multi-connection network sync (per-connection state, etc)
+- duplicate file/chunk optimizations
+- secret_key-in-home helpers (read/write)
+- SLEEP bitfields stuff
+- .latest and .ogd files
 - benchmarks! syscall counts (strace), timing, etc
 - test fault injection... with strace?
 - consider kafka (append performance) and sqlite (robustness) file I/O patterns

@@ -22,6 +22,7 @@ it will eat-your-data!
     - [x] read data entries by index
     - [x] append data entries
     - [x] verify entire register (signatures and merkel tree)
+    - [ ] receive and insert data out of order
     - [ ] bitfields
 - [ ] Drive metadata and files
     - [x] read full history ("log")
@@ -34,7 +35,10 @@ it will eat-your-data!
     - [ ] receive entire register from a known host
     - [ ] share (upload) register to a known host
     - [ ] bitfields
-    - [ ] lookup hosts in DHT swarm by discovery key
+- [ ] Discovery
+    - [x] centralized DNS
+    - [ ] mDNS (local DNS)
+    - [ ] DHT (distributed hash table)
 - [ ] Wrapper commands
     - [ ] clone
     - [ ] share
@@ -44,7 +48,7 @@ it will eat-your-data!
 
 ### Differences from dat
 
-A few simplifications were made compared to the regular dat client:
+Significant simplifications were made compared to the regular dat client:
 
 - Content data is always stored in the SLEEP directory (`content.data`),
   instead of just having the latest data in files in the working directory.
@@ -54,7 +58,6 @@ A few simplifications were made compared to the regular dat client:
 - Tracking of remote node state (bitfields) is minimized as much as possible.
 - Almost everything is synchronous and single-threaded, so only a single remote
   node connection at a time is allowed.
-- discovery (DHT, multicast-DNS, etc) is not implemented.
 
 ### Dependencies
 
