@@ -40,8 +40,8 @@ fn run() -> Result<()> {
                 .arg_from_usage("<dat_key> 'dat key (public key) to register with'"),
         )
         .subcommand(
-            SubCommand::with_name("receive-all")
-                .about("Connects to a peer, pulls all metadata and content")
+            SubCommand::with_name("receive-some")
+                .about("Connects to a peer, pulls some metadata and content")
                 .arg_from_usage("<host_port> 'peer host:port to connect to'")
                 .arg_from_usage("<dat_key> 'dat key (public key) to register with'"),
         )
@@ -80,26 +80,13 @@ fn run() -> Result<()> {
         ("connect", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
-            if dat_key.len() != 32 * 2 {
-                bail!("dat key not correct length");
-            }
-            let mut key_bytes = vec![];
-            for i in 0..32 {
-                let r = u8::from_str_radix(&dat_key[2 * i..2 * i + 2], 16);
-                match r {
-                    Ok(b) => key_bytes.push(b),
-                    Err(e) => bail!("Problem with hex: {}", e),
-                };
-            }
+            let key_bytes = parse_dat_key(&dat_key)?;
             DatConnection::connect(host_port, &key_bytes, false)?;
             println!("Done!");
         }
-        ("receive-all", Some(subm)) => {
+        ("receive-some", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
-            if dat_key.len() != 32 * 2 {
-                bail!("dat key not correct length");
-            }
             let key_bytes = parse_dat_key(&dat_key)?;
             let mut dc = DatConnection::connect(host_port, &key_bytes, false)?;
             // XXX: number here totally arbitrary
@@ -109,9 +96,6 @@ fn run() -> Result<()> {
         }
         ("discovery-key", Some(subm)) => {
             let dat_key = subm.value_of("dat_key").unwrap();
-            if dat_key.len() != 32 * 2 {
-                bail!("dat key not correct length");
-            }
             let key_bytes = parse_dat_key(&dat_key)?;
             let disc_key = make_discovery_key(&key_bytes);
             for b in disc_key {
@@ -121,9 +105,6 @@ fn run() -> Result<()> {
         }
         ("discovery-dns-name", Some(subm)) => {
             let dat_key = subm.value_of("dat_key").unwrap();
-            if dat_key.len() != 32 * 2 {
-                bail!("dat key not correct length");
-            }
             let key_bytes = parse_dat_key(&dat_key)?;
             let disc_key = make_discovery_key(&key_bytes);
             for b in 0..20 {
