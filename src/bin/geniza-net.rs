@@ -56,6 +56,11 @@ fn run() -> Result<()> {
                 .arg_from_usage("<dat_key> 'dat key (public key) to convert (in hex)'"),
         )
         .subcommand(
+            SubCommand::with_name("discover-dns")
+                .about("Does a centralized DNS lookup for peers with the given key")
+                .arg_from_usage("<dat_key> 'dat key (public key) to lookup"),
+        )
+        .subcommand(
             SubCommand::with_name("naive-clone")
                 .about("Pulls a drive from a single (known) peer, using a naive algorithm")
                 .arg(Arg::with_name("dat-dir")
@@ -125,6 +130,18 @@ fn run() -> Result<()> {
                 print!("{:02x}", disc_key[b]);
             }
             println!(".dat.local");
+        }
+        ("discover-dns", Some(subm)) => {
+            let dat_key = subm.value_of("dat_key").unwrap();
+            let key_bytes = parse_dat_key(&dat_key)?;
+            let peers = discover_peers_dns(&key_bytes)?;
+            if peers.len() == 0 {
+                println!("No peers found!");
+            } else {
+                for p in peers {
+                    println!("{}", p);
+                }
+            }
         }
         ("naive-clone", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();

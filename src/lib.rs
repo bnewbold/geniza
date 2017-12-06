@@ -24,6 +24,8 @@ extern crate protobuf;
 extern crate rand;
 extern crate sodiumoxide;
 extern crate bit_field;
+extern crate resolve;
+extern crate data_encoding;
 
 #[cfg(test)]
 extern crate tempdir;
@@ -35,6 +37,7 @@ mod errors {
     error_chain! {
         foreign_links { Fmt(::std::fmt::Error);
                         Io(::std::io::Error) #[cfg(unix)];
+                        AddrParseError(::std::net::AddrParseError);
                         Protobuf(::protobuf::ProtobufError); }
     }
 }
@@ -55,6 +58,8 @@ pub mod network_msgs;
 pub mod metadata_msgs;
 mod node;
 pub use node::*;
+mod discovery;
+pub use discovery::*;
 
 // Shared functions
 use crypto::digest::Digest;
