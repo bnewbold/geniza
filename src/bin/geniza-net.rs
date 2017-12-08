@@ -12,22 +12,6 @@ use geniza::*;
 use std::path::Path;
 use clap::{App, SubCommand, Arg};
 
-fn parse_dat_key(raw_key: &str) -> Result<Vec<u8>> {
-
-    if raw_key.len() != 32 * 2 {
-        bail!("dat key not correct length");
-    }
-    let mut key_bytes = vec![];
-    for i in 0..32 {
-        let r = u8::from_str_radix(&raw_key[2 * i..2 * i + 2], 16);
-        match r {
-            Ok(b) => key_bytes.push(b),
-            Err(e) => bail!("Problem with hex: {}", e),
-        };
-    }
-    Ok(key_bytes)
-}
-
 fn run() -> Result<()> {
     env_logger::init().unwrap();
 
@@ -81,7 +65,7 @@ fn run() -> Result<()> {
         ("connect", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
-            let key_bytes = parse_dat_key(&dat_key)?;
+            let key_bytes = parse_dat_address(&dat_key)?;
             DatConnection::connect(host_port, &key_bytes, false)?;
             println!("Done!");
         }
@@ -89,7 +73,7 @@ fn run() -> Result<()> {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
             let count: u64 = subm.value_of("count").unwrap().parse().unwrap();
-            let key_bytes = parse_dat_key(&dat_key)?;
+            let key_bytes = parse_dat_address(&dat_key)?;
             let mut dc = DatConnection::connect(host_port, &key_bytes, false)?;
             dc.receive_some(false, count)?;
             dc.receive_some(true, count)?;
@@ -97,7 +81,7 @@ fn run() -> Result<()> {
         }
         ("discovery-key", Some(subm)) => {
             let dat_key = subm.value_of("dat_key").unwrap();
-            let key_bytes = parse_dat_key(&dat_key)?;
+            let key_bytes = parse_dat_address(&dat_key)?;
             let disc_key = make_discovery_key(&key_bytes);
             for b in disc_key {
                 print!("{:02x}", b);
@@ -106,7 +90,7 @@ fn run() -> Result<()> {
         }
         ("discovery-dns-name", Some(subm)) => {
             let dat_key = subm.value_of("dat_key").unwrap();
-            let key_bytes = parse_dat_key(&dat_key)?;
+            let key_bytes = parse_dat_address(&dat_key)?;
             let disc_key = make_discovery_key(&key_bytes);
             for b in 0..20 {
                 print!("{:02x}", disc_key[b]);
@@ -115,7 +99,7 @@ fn run() -> Result<()> {
         }
         ("discover-dns", Some(subm)) => {
             let dat_key = subm.value_of("dat_key").unwrap();
-            let key_bytes = parse_dat_key(&dat_key)?;
+            let key_bytes = parse_dat_address(&dat_key)?;
             let peers = discover_peers_dns(&key_bytes)?;
             if peers.len() == 0 {
                 println!("No peers found!");
@@ -128,7 +112,7 @@ fn run() -> Result<()> {
         ("naive-clone", Some(subm)) => {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
-            let key_bytes = parse_dat_key(&dat_key)?;
+            let key_bytes = parse_dat_address(&dat_key)?;
             let dir = Path::new(subm.value_of("dat-dir").unwrap());
             let mut metadata = SleepDirRegister::create(&dir, "metadata")?;
             node_simple_clone(host_port, &key_bytes, &mut metadata, false)?;
