@@ -1,5 +1,6 @@
 papers/
 target/
+scratch/
 **/*.rs.bk
 *.o
 *.a
