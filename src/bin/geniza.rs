@@ -9,8 +9,26 @@ extern crate geniza;
 
 // TODO: more careful import
 use geniza::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use clap::{App, SubCommand};
+use std::env::current_dir;
+
+
+// Helper to find a dat directory somewhere in the parent to the current working directory (or None
+// if not found)
+fn find_dat_dir() -> Option<PathBuf> {
+    let mut here: &Path = &current_dir().unwrap();
+    loop {
+        let check = here.join(".dat");
+        if check.is_dir() && check.join("metadata.tree").is_file() {
+            return Some(check);
+        };
+        here = match here.parent() {
+            None => return None,
+            Some(t) => t,
+        }
+    }
+}
 
 fn run() -> Result<()> {
     env_logger::init().unwrap();
@@ -86,7 +104,31 @@ fn run() -> Result<()> {
             unimplemented!();
         }
         ("log", Some(_subm)) => {
-            unimplemented!();
+            let dat_dir = match find_dat_dir() {
+                Some(p) => p,
+                None => {
+                    println!("Couldn't find '.dat/' in the current or (any parent) directory.");
+                    println!("Are you running from inside a Dat archive?");
+                    ::std::process::exit(-1);
+                }
+            };
+            println!("{:?}", dat_dir);
+            let mut drive = DatDrive::open(dat_dir, false)?;
+            for entry in drive.history(0) {
+                let entry = entry?;
+                if let Some(stat) = entry.stat {
+                    if stat.get_blocks() == 0 {
+                        println!("{}\t[chg]  {}",
+                            entry.index, entry.path.display());
+                    } else {
+                        println!("{}\t[put]  {}\t{} bytes ({} blocks)",
+                            entry.index, entry.path.display(), stat.get_size(), stat.get_blocks());
+                    }
+                } else {
+                    println!("{}\t[del]  {}",
+                        entry.index, entry.path.display());
+                }
+            }
         }
         ("checkout", Some(subm)) => {
             let _path = Path::new(subm.value_of("path").unwrap());
