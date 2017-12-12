@@ -68,9 +68,6 @@ Notable Rust Libraries:
 - `integer-encoding` for simple "varints"
 - `rust-protobuf` for protobuf messages
 
-While (temporarily?) using Cargo's `[patch]` feature to patch sodiumoxide,
-builds require Rust 1.21 (stable circa Oct 2017).
-
 Requires the libsodium library installed system-wide to run, and header files
 (`libsodium-dev`) for now, due to dynamic linking and the simple build
 configuration. It should be possible to statically link a free-standing
