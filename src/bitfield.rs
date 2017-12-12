@@ -2,14 +2,22 @@
 use errors::*;
 use integer_encoding::VarInt;
 use bit_field::BitArray;
+use network_msgs::Have;
 
+pub struct Bitfield {
+    inner: Vec<u64>,
+}
 
-// WrappedBitfield
-//
-// uses vec of u64 internally?
-// 
-// fn from_message()
-// fn get(u64)
+impl Bitfield {
+
+    pub fn from_have_msg(msg: &Have) -> Bitfield {
+        unimplemented!()
+    }
+
+    pub fn get(&self, index: u64) -> Result<bool> {
+        unimplemented!()
+    }
+}
 
 pub fn decode_bitfield(raw_bf: &[u8]) -> Result<Vec<u8>> {
     let mut offset = 0; // byte offset that we have read up to

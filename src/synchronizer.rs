@@ -4,18 +4,35 @@ use network_msgs::*;
 use bitfield::*;
 use protocol::{DatNetMessage, DatConnection};
 use sleep_register::HyperRegister;
+use peer::DatPeer;
+use sleep_register::SleepDirRegister;
 
-// Synchronizer
-//  register_keys
-//  peers: vec
-//  registers: HyperRegisters
-//  mode: enum
-//  state: enum
-//  wanted: bitfield
-//  requested: vec
-//
-// fn next_wanted() -> Option((reg, u64))
-// fn tick()
+pub enum SyncMode {
+    RxMax,
+    RxEndless,
+    TxEndless,
+    RxTxEndless,
+}
+
+pub struct Synchronizer {
+    peers: Vec<DatPeer>,
+    registers: Vec<SleepDirRegister>,
+    mode: SyncMode,
+    wanted: Bitfield,
+    inflight: Vec<Vec<u64>>,
+}
+
+impl Synchronizer {
+
+    pub fn next_wanted(&mut self, reg: u64) -> Option<(u64, u64)> {
+        // XXX
+        None
+    }
+
+    pub fn tick(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
 
 
 fn max_index(have_msg: &Have) -> Result<u64> {

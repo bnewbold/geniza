@@ -141,7 +141,7 @@ fn run() -> Result<()> {
                 None => Path::new("/").join(path.file_name().unwrap()),
                 Some(p) => Path::new("/").join(p)
             };
-            drive.import_dir(&path, &fpath)?;
+            drive.import_dir_all(&path, &fpath)?;
 
         }
         ("export-dir", Some(subm)) => {
