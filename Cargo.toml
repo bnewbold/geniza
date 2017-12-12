@@ -21,6 +21,3 @@ data-encoding = "2.0"
 [dev-dependencies]
 tempdir = "0.3"
 assert_cli = "0.5"
-
-[patch.crates-io]
-sodiumoxide = { git = 'https://github.com/bnewbold/sodiumoxide-patched', branch = 'stream_xor_ic' }
