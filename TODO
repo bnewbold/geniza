@@ -1,11 +1,10 @@
 
 next:
+- DatPeer wrapper API
+- Synchronizer API
 - clean up node bitfield implementation
 - "insert" API for HyperRegister
-- crude single-thread drive+network clone
 - sparse register clone
-- "needed data chunks" and progress function?
-- crude single-thread drive+network broadcast
 - 'geniza clone' command
 - 'geniza checkout' command
 - 'geniza init', 'geniza commit' commands
@@ -28,7 +27,7 @@ Backburner:
 - API to link and run from, eg, python
 - uTP transport
 - in-memory storage backend
-- WASM
+- compile to WASM... play in browser?
 - multi-connection network sync (per-connection state, etc)
 - duplicate file/chunk optimizations
 - secret_key-in-home helpers (read/write)

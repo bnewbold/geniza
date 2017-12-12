@@ -30,15 +30,16 @@ it will eat-your-data!
     - [x] import file to register
     - [x] export file from register
     - [x] import/export directories recursively
-- [ ] Networking
+- [ ] Protocol
     - [x] send/receive encrypted messages to a known host
-    - [ ] receive entire register from a known host
-    - [ ] share (upload) register to a known host
     - [ ] bitfields
 - [ ] Discovery
     - [x] centralized DNS
     - [ ] mDNS (local DNS)
     - [ ] DHT (distributed hash table)
+- [ ] Peer Synchronization
+    - [ ] receive entire register from a known host
+    - [ ] share (upload) register to a known host
 - [ ] Wrapper commands
     - [ ] clone
     - [ ] share

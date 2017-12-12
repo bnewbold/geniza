@@ -1,60 +1,29 @@
 
 use errors::*;
 use network_msgs::*;
+use bitfield::*;
 use protocol::{DatNetMessage, DatConnection};
-use integer_encoding::VarInt;
-use bit_field::BitArray;
 use sleep_register::HyperRegister;
 
-fn decode_bitfiled(raw_bf: &[u8]) -> Result<Vec<u8>> {
-    let mut offset = 0; // byte offset that we have read up to
-    if raw_bf.len() < 1 {
-        bail!("Expected (varint-encoded) bitfield to have len>=1");
-    }
-    let mut bit_array: Vec<u8> = vec![];
-    while offset < raw_bf.len() {
-        let (header, inc): (u64, usize) = VarInt::decode_var(&raw_bf[offset..]);
-        offset += inc;
+// Synchronizer
+//  register_keys
+//  peers: vec
+//  registers: HyperRegisters
+//  mode: enum
+//  state: enum
+//  wanted: bitfield
+//  requested: vec
+//
+// fn next_wanted() -> Option((reg, u64))
+// fn tick()
 
-        if (header & 0x01) == 0x01 {
-            // compressed
-            let bit = (header & 0x02) == 0x02;
-            let run_len = header >> 2;
-            if bit {
-                bit_array.append(&mut vec![0xFF; run_len as usize]);
-            } else {
-                bit_array.append(&mut vec![0x00; run_len as usize]);
-            }
-        } else {
-            // uncompressed
-            let byte_count = header >> 1;
-            let mut data = raw_bf[offset..(offset + byte_count as usize)].to_vec();
-            bit_array.append(&mut data);
-            offset += byte_count as usize;
-        }
-    }
-    // XXX: HACK
-    bit_array.reverse();
-    return Ok(bit_array);
-}
-
-/// Finds the index of the lowest bit
-fn max_high_bit(bf: &[u8]) -> u64 {
-    // XXX: HACK, going backwards
-    for i in 0..bf.bit_length() {
-        if bf.get_bit(i) {
-            return (bf.bit_length() - i - 1) as u64;
-        }
-    }
-    return 0;
-}
 
 fn max_index(have_msg: &Have) -> Result<u64> {
     if have_msg.has_length() {
         return Ok(have_msg.get_start() + have_msg.get_length());
     } else if have_msg.has_bitfield() {
         let raw_bf = have_msg.get_bitfield();
-        let bf = decode_bitfiled(raw_bf)?;
+        let bf = decode_bitfield(raw_bf)?;
         trace!("decoded bitfield: {:?}", bf);
         return Ok(max_high_bit(&bf));
     } else {
