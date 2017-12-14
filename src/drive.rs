@@ -1,5 +1,5 @@
 
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufReader};
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::fs::{File, OpenOptions, read_dir, create_dir_all};
@@ -443,6 +443,7 @@ impl<'a> DatDrive {
         info!("importing file: '{:?}' as '{:?}'", source.as_ref(), dest.as_ref());
         let in_file = File::open(source)?;
         let in_metadata = in_file.metadata()?;
+        let in_file = BufReader::new(in_file);
         let mut stat = Stat::new();
         stat.set_mode(in_metadata.mode());
         stat.set_uid(in_metadata.uid());
