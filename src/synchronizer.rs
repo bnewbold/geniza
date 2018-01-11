@@ -66,7 +66,7 @@ fn test_max_index() {
 }
 
 /// Tries to connect to a single peer, pull register, and close.
-pub fn node_simple_clone(host_port: &str, key: &[u8], register: &mut HyperRegister, is_content: bool) -> Result<()> {
+pub fn node_simple_clone(host_port: &str, key: &[u8], register: &mut HyperRegister, reg_index: u8) -> Result<()> {
 
     if register.len()? > 0 {
         bail!("Register already had data in it (expected empty for naive clone)");
@@ -79,35 +79,35 @@ pub fn node_simple_clone(host_port: &str, key: &[u8], register: &mut HyperRegist
     im.set_uploading(false);
     im.set_downloading(true);
     let im = DatNetMessage::Info(im);
-    dc.send_msg(&im, is_content)?;
+    dc.send_msg(&im, reg_index)?;
 
     // Have: nothing (so far)
     let mut hm = Have::new();
     hm.set_start(0);
     hm.set_length(0);
     let hm = DatNetMessage::Have(hm);
-    dc.send_msg(&hm, is_content)?;
+    dc.send_msg(&hm, reg_index)?;
 
     // UnHave: still nothing
     let mut uhm = Unhave::new();
     uhm.set_start(0);
     let uhm = DatNetMessage::Unhave(uhm);
-    dc.send_msg(&uhm, is_content)?;
+    dc.send_msg(&uhm, reg_index)?;
 
     // Want: everything
     let mut wm = Want::new();
     wm.set_start(0);
     let wm = DatNetMessage::Want(wm);
-    dc.send_msg(&wm, is_content)?;
+    dc.send_msg(&wm, reg_index)?;
 
     let last_entry: u64;
 
     // Receive Have messages to determine lengths
     loop {
-        let (was_content, msg) = dc.recv_msg()?;
+        let (msg, got_reg_index) = dc.recv_msg()?;
         match msg {
             DatNetMessage::Have(dh) =>  {
-                info!("is_content={}; {:?}; bitfield={:?}", was_content, dh, dh.get_bitfield());
+                info!("reg_index={}; {:?}; bitfield={:?}", got_reg_index, dh, dh.get_bitfield());
                 last_entry = max_index(&dh)?;
                 break;
             },
@@ -124,9 +124,9 @@ pub fn node_simple_clone(host_port: &str, key: &[u8], register: &mut HyperRegist
         let mut rm = Request::new();
         rm.set_index(i);
         info!("Sending request: {:?}", rm);
-        dc.send_msg(&DatNetMessage::Request(rm), false)?;
-        let (was_content, msg) = dc.recv_msg()?;
-        assert!(!was_content);
+        dc.send_msg(&DatNetMessage::Request(rm), 0)?;
+        let (msg, got_reg_index) = dc.recv_msg()?;
+        assert!(got_reg_index == 0);
         match msg {
             DatNetMessage::Data(dm) =>  {
                 info!("Got data: index={}", dm.get_index());
