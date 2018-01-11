@@ -1,4 +1,0 @@
-
-"check if all bites in the 2 bytes"
-
-"compresses nicely as its all contiguous ones on disk"

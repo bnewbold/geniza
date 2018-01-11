@@ -24,6 +24,7 @@ performance:
 - keep an LRU cache of SLEEP reads
 
 Backburner:
+- try switching to Coded{Input/Output}Stream for fewer copies/allocations
 - API to link and run from, eg, python
 - uTP transport
 - in-memory storage backend
@@ -60,3 +61,4 @@ Backburner:
 - debug commands with hex i/o:
     https://github.com/ia0/data-encoding
 - sendfile() or splice() for disk-to-disk copying?
+- Rust FS API example: https://docs.rs/zbox/0.1.3/zbox/

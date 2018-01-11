@@ -1,11 +1,4 @@
 
-"You can use the byteOffset property in the Stat meta- data object to seek into
-the right position in the content for the start of this chunk." => unnecessary,
-node.js specific?
-
-"If you are sharing multiple hypercores on the same port you can use this event
-to wait for the remote peer to indicate which hypercore they are interested inj"
-
 Extra things learned:
 - metadata secret keys live in ~/.dat/secret_keys/...
 - metadata.ogd indicates "original dat", meaning secret key should be present
