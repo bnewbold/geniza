@@ -75,8 +75,8 @@ fn run() -> Result<()> {
             let count: u64 = subm.value_of("count").unwrap().parse().unwrap();
             let key_bytes = parse_dat_address(&dat_key)?;
             let mut dc = DatConnection::connect(host_port, &key_bytes, false)?;
-            dc.receive_some(false, count)?;
-            dc.receive_some(true, count)?;
+            dc.receive_some(0, count)?;
+            dc.receive_some(1, count)?;
             println!("Done!");
         }
         ("discovery-key", Some(subm)) => {
@@ -115,7 +115,7 @@ fn run() -> Result<()> {
             let key_bytes = parse_dat_address(&dat_key)?;
             let dir = Path::new(subm.value_of("dat-dir").unwrap());
             let mut metadata = SleepDirRegister::create(&dir, "metadata")?;
-            node_simple_clone(host_port, &key_bytes, &mut metadata, false)?;
+            node_simple_clone(host_port, &key_bytes, &mut metadata, 0)?;
             // TODO: read out content key from metadata register
             //let content = SleepDirRegister::create(&dir, "content")?;
             //node_simple_clone(host_port, &key_bytes, &mut content, true)?;
