@@ -228,8 +228,8 @@ impl DatConnection {
         dc.send_msg(&DatNetMessage::Handshake(handshake_msg), 0)?;
 
         // read handshake
-        let (msg, reg_index) = dc.recv_msg()?;
-        if reg_index == 1 {
+        let (msg, feed_index) = dc.recv_msg()?;
+        if feed_index == 1 {
             bail!("Expected metadata msg, not content");
         }
         if let DatNetMessage::Handshake(handshake) = msg {
@@ -247,17 +247,17 @@ impl DatConnection {
         Ok(dc)
     }
 
-    /// For hyperdrive connections, `reg_index` is equivalent to a `is_content` boolean flag.
-    pub fn send_msg(&mut self, dnm: &DatNetMessage, reg_index: u8) -> Result<()> {
-        let header_int: u8 = (reg_index as u8) << 4 | (msg_code(dnm) & 0x0F);
+    /// For hyperdrive connections, `feed_index` is equivalent to a `is_content` boolean flag.
+    pub fn send_msg(&mut self, dnm: &DatNetMessage, feed_index: u8) -> Result<()> {
+        let header_int: u8 = (feed_index as u8) << 4 | (msg_code(dnm) & 0x0F);
         let msg: &Message = msg_sugar(dnm);
         let total_message_size = (msg.compute_size() as usize) + 1;
 
         trace!(
-            "SEND total_len={}  header={}  reg_index={} type={:?}",
+            "SEND total_len={}  header={}  feed_index={} type={:?}",
             total_message_size,
             header_int,
-            reg_index,
+            feed_index,
             &dnm
         );
 
@@ -285,13 +285,13 @@ impl DatConnection {
         let total_len: u64 = self.read_varint()?;
         let header: u8 = self.read_varint()?;
 
-        let reg_index = (header >> 4) & 0xFF;
+        let feed_index = (header >> 4) & 0xFF;
 
         trace!(
-            "RECV total_len={}  header={}  reg_index={}",
+            "RECV total_len={}  header={}  feed_index={}",
             total_len,
             header,
-            reg_index,
+            feed_index,
         );
 
         if header > 0x1F {
@@ -316,7 +316,7 @@ impl DatConnection {
             other => bail!("Unimplemented message type received: {}", other),
         };
         trace!("\twas: {:?}", &dnm);
-        Ok((dnm, reg_index))
+        Ok((dnm, feed_index))
     }
 
     /// Special unencrypted variant of `send_msg()`, used only during initial connection
@@ -364,38 +364,38 @@ impl DatConnection {
     }
 
     /// This is a debug/dev helper, will be deleted
-    pub fn receive_some(&mut self, reg_index: u8, length: u64) -> Result<()> {
+    pub fn receive_some(&mut self, feed_index: u8, length: u64) -> Result<()> {
         // Info: downloading, not uploading
         let mut im = Info::new();
         im.set_uploading(false);
         im.set_downloading(true);
-        self.send_msg(&DatNetMessage::Info(im), reg_index)?;
+        self.send_msg(&DatNetMessage::Info(im), feed_index)?;
 
         // Have: nothing (so far)
         let mut hm = Have::new();
         hm.set_start(0);
         hm.set_length(0);
-        self.send_msg(&DatNetMessage::Have(hm), reg_index)?;
+        self.send_msg(&DatNetMessage::Have(hm), feed_index)?;
 
         // UnHave: still nothing
         let mut uhm = Unhave::new();
         uhm.set_start(0);
-        self.send_msg(&DatNetMessage::Unhave(uhm), reg_index)?;
+        self.send_msg(&DatNetMessage::Unhave(uhm), feed_index)?;
 
         // Want: everything
         let mut wm = Want::new();
         wm.set_start(0);
-        self.send_msg(&DatNetMessage::Want(wm), reg_index)?;
+        self.send_msg(&DatNetMessage::Want(wm), feed_index)?;
 
         // Request / Data loop
         for i in 0..length {
             let mut rm = Request::new();
             rm.set_index(i);
-            self.send_msg(&DatNetMessage::Request(rm), reg_index)?;
+            self.send_msg(&DatNetMessage::Request(rm), feed_index)?;
 
             loop {
                 let (msg, rx_index) = self.recv_msg()?;
-                if rx_index != reg_index {
+                if rx_index != feed_index {
                     info!("Expected other message channel");
                     continue;
                 }

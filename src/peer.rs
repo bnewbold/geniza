@@ -9,19 +9,19 @@ use sodiumoxide::crypto::stream::Key;
 use protobuf::parse_from_bytes;
 use make_discovery_key;
 
-/// Wraps a low-level DatConnection with extra state about mutually active registers, bitfields the
-/// remote has declare they Have, etc.
+/// Wraps a low-level DatConnection with extra state about active feeds, bitfields that the
+/// remote has declared they Have, etc.
 pub struct DatPeer {
-    registers: Vec<Key>,
+    feeds: Vec<Key>,
     conn: DatConnection,
     remote_has: Vec<Vec<Bitfield>>,
 }
 
 impl DatPeer {
 
-    /// Has the remote peer indicated they have the given chunk in the given register?
-    pub fn has(self, register: u64, index: u64) -> Result<bool> {
-        for bitfield in self.remote_has[register as usize].iter() {
+    /// Has the remote peer indicated they have the given chunk in the given feed?
+    pub fn has(self, feed: u64, index: u64) -> Result<bool> {
+        for bitfield in self.remote_has[feed as usize].iter() {
             if bitfield.get(index)? {
                 return Ok(true)
             }
@@ -29,19 +29,19 @@ impl DatPeer {
         Ok(false)
     }
 
-    pub fn add_register(&mut self, key: &[u8]) -> Result<()> {
+    pub fn add_feed(&mut self, key: &[u8]) -> Result<()> {
 
         let key_bytes = key;
         let key = Key::from_slice(key_bytes).unwrap();
 
-        for k in self.registers.iter() {
+        for k in self.feeds.iter() {
             if *k == key {
-                warn!("tried to add register an existing key on a DatPeer connection");
+                warn!("tried to add existing feed/key on a DatPeer connection");
                 return Ok(())
             }
         }
 
-        let index = self.registers.len();
+        let index = self.feeds.len();
         assert!(index < 256);
         let discovery_key = make_discovery_key(key_bytes);;
 
@@ -50,31 +50,31 @@ impl DatPeer {
         feed_msg.set_discoveryKey(discovery_key.to_vec());
         self.conn.send_msg(&DatNetMessage::Feed(feed_msg), index as u8)?;
 
-        self.registers.push(key.clone());
+        self.feeds.push(key.clone());
         self.remote_has.push(vec![]);
         Ok(())
 
     }
 
-    /// hyperdrive-specific helper for discovering the public key for the "content" hyperregister
-    /// from the "metadata" register, and sending a Feed message to initialize on this connection.
+    /// hyperdrive-specific helper for discovering the public key for the "content" feed
+    /// from the "metadata" feed , and sending a Feed message to initialize on this connection.
     pub fn init_data_feed(&mut self) -> Result<()> {
 
-        if self.registers.len() > 1 {
+        if self.feeds.len() > 1 {
             return Ok(());
         }
 
         let data_key = self.get_drive_data_key()?;
-        self.add_register(&data_key[0..32])
+        self.add_feed(&data_key[0..32])
     }
 
 
-    /// hyperdrive-specific helper for returning the "data" hyperregister public key (aka, index=1)
+    /// hyperdrive-specific helper for returning the "data" feed public key (aka, index=1)
     pub fn get_drive_data_key(&mut self) -> Result<Key> {
 
-        if self.registers.len() > 1 {
+        if self.feeds.len() > 1 {
             // we already have the key
-            let key = self.registers[1].clone();
+            let key = self.feeds[1].clone();
             return Ok(key);
         }
 
@@ -103,8 +103,8 @@ impl DatPeer {
 
         // listen for Have
         loop {
-            let (msg, reg_index) = self.conn.recv_msg()?;
-            if reg_index == 1 {
+            let (msg, feed_index) = self.conn.recv_msg()?;
+            if feed_index == 1 {
                 continue;
             }
             if let DatNetMessage::Have(_) = msg {
@@ -121,8 +121,8 @@ impl DatPeer {
         self.conn.send_msg(&DatNetMessage::Request(rm), 0)?;
 
         loop {
-            let (msg, reg_index) = self.conn.recv_msg()?;
-            if reg_index == 1 {
+            let (msg, feed_index) = self.conn.recv_msg()?;
+            if feed_index == 1 {
                 info!("Expected other message channel");
                 continue;
             }
@@ -154,7 +154,7 @@ impl From<DatConnection> for DatPeer {
     fn from(dc: DatConnection) -> DatPeer {
         let key = dc.key.clone();
         DatPeer {
-            registers: vec![key],
+            feeds: vec![key],
             conn: dc,
             remote_has: vec![vec![]],
         }
