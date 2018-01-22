@@ -24,13 +24,6 @@ fn run() -> Result<()> {
                 .arg_from_usage("<dat_key> 'dat key (public key) to register with'"),
         )
         .subcommand(
-            SubCommand::with_name("receive-some")
-                .about("Connects to a peer, pulls some metadata and content")
-                .arg_from_usage("<host_port> 'peer host:port to connect to'")
-                .arg_from_usage("<dat_key> 'dat key (public key) to register with'")
-                .arg_from_usage("<count> 'how many entries to pull'"),
-        )
-        .subcommand(
             SubCommand::with_name("discovery-key")
                 .about("Prints (in hex) the discovery key for a dat archive")
                 .arg_from_usage("<dat_key> 'dat key (public key) to convert (in hex)'"),
@@ -67,16 +60,6 @@ fn run() -> Result<()> {
             let dat_key = subm.value_of("dat_key").unwrap();
             let key_bytes = parse_dat_address(&dat_key)?;
             DatConnection::connect(host_port, &key_bytes, false)?;
-            println!("Done!");
-        }
-        ("receive-some", Some(subm)) => {
-            let host_port = subm.value_of("host_port").unwrap();
-            let dat_key = subm.value_of("dat_key").unwrap();
-            let count: u64 = subm.value_of("count").unwrap().parse().unwrap();
-            let key_bytes = parse_dat_address(&dat_key)?;
-            let mut dc = DatConnection::connect(host_port, &key_bytes, false)?;
-            dc.receive_some(0, count)?;
-            dc.receive_some(1, count)?;
             println!("Done!");
         }
         ("discovery-key", Some(subm)) => {
