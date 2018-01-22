@@ -1,6 +1,10 @@
 
 libsodium Ed25519 keys, Blake2b 32-bit hashes
 
+This file is a WIP. The 'simple' example might have errors; the hypercore tests
+and 'alphabet' example seemed to actually work (aka, matches dat upstream
+client behavior).
+
 ====== simple
 
 bnewbold@orithena$ cat test-data/dat/simple/.dat/content.key | base64
@@ -70,30 +74,7 @@ Paper says:
         )
     )
 
-So, for first entry, expect:
-
-    Ed25519 sign(
-        BLAKE2b (
-            02,
-            67179c243b387b7c7c420bd7bdc69d35c061b979bb365f9cc07b4527eeddeefa,
-            00 00 00 00 00 00 00 00,
-            00 00 00 00 00 00 00 42,
-        ) = e589278e08886963a6010afff83f27a977fe9a8e54a404cc7f18347a5dabcb8c
-    ) = 0c9baeb68e8c74adc57ac4e85ffb7e4b6b66f21c821b068e6eead2889b68026c5c731bc5786c669cdf3461572fb7f32f41e8399c8ecd7e360f9fdfb39a667a05
-
-For the second:
-
-    Ed25519 sign(
-        BLAKE2b (
-            02,
-            2bebe6863618c586086d2520aa0d13da666b002e5ad2b16223a15bc15586f1e4,
-            00 00 00 00 00 00 00 01,
-            00 00 00 00 00 00 00 CC,
-        ) = e589278e08886963a6010afff83f27a977fe9a8e54a404cc7f18347a5dabcb8c
-    ) = 0c9baeb68e8c74adc57ac4e85ffb7e4b6b66f21c821b068e6eead2889b68026c5c731bc5786c669cdf3461572fb7f32f41e8399c8ecd7e360f9fdfb39a667a05
-
-
-=========== New example from hypercore tests
+=========== example from hypercore tests
 
 Data chunks are just 'a', 'b', 'c'.
 
