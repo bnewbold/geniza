@@ -1,13 +1,43 @@
 
 next:
-- DatPeer wrapper API
-- Synchronizer API
+- DatConnection
+    => u32 for feed index
+    => change sockaddr argument... not sure to what, maybe ToSockAddr?
+    => rip out more crap ("receive some", no_delay, registration extras)
+    => how to accept() (from_stream() refactor?)
+- PeerThread
+    => proper error propagation
+    => don't store state (bitfield) in PeerThread itself, leave to Synchronizer
+    => to start, just use feed index (don't keep key/index table)
+    => need "self peer id" passed around
+    => keep "peer handle"... in the future, should be based on remote handle returned
+- Synchronizer
+    => probably an options builder
+    => generate "self peer id"
+    => "wanted" bitmap
+    => design statemachine (global and per-peer)
+    => actions for each message type
+    => PeerState helper, with bitfield
+    => when a peer is ready, find a mutal chunk option, mark as in progress
+    => some logic to do drive stuff (add new registers, etc)
+    => chan-signal to shutdown
+- get everything to compile
 - clean up node bitfield implementation
-- "insert" API for HyperRegister
+    => use bit_vec (bit-vec = "0.4.4") instead of bit_field (remove)
+- "insert" API for HyperRegister (when we have a signed Data message)
+- how to create a Data message in response to a Request
 - sparse register clone
 - 'geniza clone' command
 - 'geniza checkout' command
 - 'geniza init', 'geniza commit' commands
+
+threaded sync:
+- rust stdlib async TCP?
+- event loop runner
+- channel polling
+- polling for connections (channels + async TCP)
+- UNIX signal handling
+- later: accepting inbound connections
 
 specific tests:
 - drive children array: deep directory nesting (like 'tree' example)
@@ -62,3 +92,4 @@ Backburner:
     https://github.com/ia0/data-encoding
 - sendfile() or splice() for disk-to-disk copying?
 - Rust FS API example: https://docs.rs/zbox/0.1.3/zbox/
+- "bytes" crate
