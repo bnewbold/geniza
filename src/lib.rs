@@ -28,6 +28,7 @@ extern crate resolve;
 extern crate data_encoding;
 #[macro_use]
 extern crate chan;
+extern crate bit_vec;
 
 #[cfg(test)]
 extern crate tempdir;

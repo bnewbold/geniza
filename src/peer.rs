@@ -13,15 +13,15 @@ use chan;
 /// Wraps a low-level DatConnection in a thread (or two). Contains very little context about
 /// itself.
 pub struct DatPeerThread {
-    handle: u64,
+    pub handle: u64,
     feeds: Vec<(u8, Key)>,
     outbound_chan: chan::Sender<(DatNetMessage, u8)>,
 }
 
 pub struct PeerMsg {
-    peer_handle: u64,
-    feed_index: u8,
-    msg: DatNetMessage,
+    pub peer_handle: u64,
+    pub feed_index: u8,
+    pub msg: DatNetMessage,
 }
 
 /// This is what the "receive" loop does: simply blocking reads on the TCP socket, passing any
