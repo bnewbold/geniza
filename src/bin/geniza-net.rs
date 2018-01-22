@@ -6,11 +6,13 @@ extern crate env_logger;
 #[macro_use]
 extern crate error_chain;
 extern crate geniza;
+extern crate sodiumoxide;
 
 // TODO: more careful import
 use geniza::*;
 use std::path::Path;
 use clap::{App, SubCommand, Arg};
+use sodiumoxide::crypto::stream::Key;
 
 fn run() -> Result<()> {
     env_logger::init().unwrap();
@@ -59,7 +61,8 @@ fn run() -> Result<()> {
             let host_port = subm.value_of("host_port").unwrap();
             let dat_key = subm.value_of("dat_key").unwrap();
             let key_bytes = parse_dat_address(&dat_key)?;
-            DatConnection::connect(host_port, &key_bytes, false)?;
+            let key = Key::from_slice(&key_bytes).unwrap();
+            DatConnection::connect(host_port, &key, false)?;
             println!("Done!");
         }
         ("discovery-key", Some(subm)) => {

@@ -176,8 +176,26 @@ impl Write for DatConnection {
     }
 }
 
+impl Clone for DatConnection {
+    fn clone(&self) -> DatConnection {
+        DatConnection {
+            id: self.id.clone(),
+            remote_id: self.remote_id.clone(),
+            tcp: self.tcp.try_clone().unwrap(),
+            live: self.live,
+            key: self.key.clone(),
+            discovery_key: self.discovery_key.clone(),
+            tx_nonce: self.tx_nonce.clone(),
+            tx_offset: self.tx_offset,
+            rx_nonce: self.rx_nonce.clone(),
+            rx_offset: self.rx_offset,
+
+        }
+    }
+}
+
 impl DatConnection {
-    pub fn connect<A: ToSocketAddrs + Display>(addr: A, key: &[u8], live: bool) -> Result<DatConnection> {
+    pub fn connect<A: ToSocketAddrs + Display>(addr: A, key: &Key, live: bool) -> Result<DatConnection> {
 
         // Connect to server
         info!("Connecting to {}", addr);
@@ -188,7 +206,7 @@ impl DatConnection {
     }
 
     // It's sort of a hack, but this should be usable from an accept() as well as a connect()
-    pub fn from_tcp(tcp: TcpStream, key: &[u8], live: bool) -> Result<DatConnection> {
+    pub fn from_tcp(tcp: TcpStream, key: &Key, live: bool) -> Result<DatConnection> {
 
         let tx_nonce = gen_nonce();
         let mut local_id = [0; 32];
@@ -196,7 +214,7 @@ impl DatConnection {
         rng.fill_bytes(&mut local_id);
 
         let mut dk = [0; 32];
-        dk.copy_from_slice(&make_discovery_key(key)[0..32]);
+        dk.copy_from_slice(&make_discovery_key(&key[0..32])[0..32]);
 
         let timeout = Duration::new(7, 0);
         tcp.set_write_timeout(Some(timeout))?;
@@ -206,7 +224,7 @@ impl DatConnection {
             tcp,
             live,
             remote_id: [0; 32],
-            key: Key::from_slice(key).unwrap(), // TODO:
+            key: key.clone(),
             discovery_key: dk,
             tx_nonce: tx_nonce,
             tx_offset: 0,

@@ -26,6 +26,8 @@ extern crate sodiumoxide;
 extern crate bit_field;
 extern crate resolve;
 extern crate data_encoding;
+#[macro_use]
+extern crate chan;
 
 #[cfg(test)]
 extern crate tempdir;
