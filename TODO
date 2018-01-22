@@ -1,19 +1,7 @@
 
 next:
-- DatConnection
-    => u32 for feed index
-    => change sockaddr argument... not sure to what, maybe ToSockAddr?
-    => rip out more crap ("receive some", no_delay, registration extras)
-    => how to accept() (from_stream() refactor?)
-- PeerThread
-    => proper error propagation
-    => don't store state (bitfield) in PeerThread itself, leave to Synchronizer
-    => to start, just use feed index (don't keep key/index table)
-    => need "self peer id" passed around
-    => keep "peer handle"... in the future, should be based on remote handle returned
 - Synchronizer
-    => probably an options builder
-    => generate "self peer id"
+    => probably an options builder?
     => "wanted" bitmap
     => design statemachine (global and per-peer)
     => actions for each message type
