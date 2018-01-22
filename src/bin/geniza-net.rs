@@ -62,7 +62,7 @@ fn run() -> Result<()> {
             let dat_key = subm.value_of("dat_key").unwrap();
             let key_bytes = parse_dat_address(&dat_key)?;
             let key = Key::from_slice(&key_bytes).unwrap();
-            DatConnection::connect(host_port, &key, false)?;
+            DatConnection::connect(host_port, &key, false, None)?;
             println!("Done!");
         }
         ("discovery-key", Some(subm)) => {

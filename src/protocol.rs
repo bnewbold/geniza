@@ -195,23 +195,33 @@ impl Clone for DatConnection {
 }
 
 impl DatConnection {
-    pub fn connect<A: ToSocketAddrs + Display>(addr: A, key: &Key, live: bool) -> Result<DatConnection> {
+    pub fn connect<A: ToSocketAddrs + Display>(addr: A, key: &Key, live: bool, local_id: Option<&[u8]>) -> Result<DatConnection> {
 
         // Connect to server
         info!("Connecting to {}", addr);
         // TODO: timeout on connect (socketaddr iterator dance)
         let tcp = TcpStream::connect(addr)?;
 
-        DatConnection::from_tcp(tcp, key, live)
+        DatConnection::from_tcp(tcp, key, live, local_id)
     }
 
     // It's sort of a hack, but this should be usable from an accept() as well as a connect()
-    pub fn from_tcp(tcp: TcpStream, key: &Key, live: bool) -> Result<DatConnection> {
+    pub fn from_tcp(tcp: TcpStream, key: &Key, live: bool, local_id: Option<&[u8]>) -> Result<DatConnection> {
 
         let tx_nonce = gen_nonce();
-        let mut local_id = [0; 32];
         let mut rng = OsRng::new()?;
-        rng.fill_bytes(&mut local_id);
+        let mut local_id = match local_id {
+            Some(val) => {
+                let mut buf = [0; 32];
+                buf.copy_from_slice(val);
+                buf
+            },
+            None => {
+                let mut buf = [0; 32];
+                rng.fill_bytes(&mut buf);
+                buf
+            },
+        };
 
         let mut dk = [0; 32];
         dk.copy_from_slice(&make_discovery_key(&key[0..32])[0..32]);

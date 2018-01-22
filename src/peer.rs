@@ -85,14 +85,30 @@ fn worker_thread(mut dc: DatConnection, handle: u64, outbound_chan: chan::Receiv
 
 impl DatPeerThread {
 
-    pub fn connect<A: ToSocketAddrs + Display>(addr: A, feed_key: Key, handle: u64, is_live: bool, unified_chan: chan::Sender<Result<PeerMsg>>) -> Result<DatPeerThread> {
+    pub fn connect<A: ToSocketAddrs + Display>(addr: A, feed_key: Key, handle: u64, is_live: bool, local_id: Option<&[u8]>, unified_chan: chan::Sender<Result<PeerMsg>>) -> Result<DatPeerThread> {
 
         let addr = addr.to_socket_addrs().unwrap().nth(0).unwrap();
         let (outbound_chan, tx_chan) = chan::async();
         let feed_key2 = feed_key.clone();
+
+        // Do an ugly little dance to copy local_id across thread barrier
+        let mut id_buf = [0; 32];
+        let local_id = match local_id {
+            None => None,
+            Some(val) => {
+                id_buf.copy_from_slice(val);
+                Some(id_buf)
+            },
+        };
         thread::spawn(move || {
 
-            let dc = match DatConnection::connect(addr, &feed_key, is_live) {
+            let local_id = match local_id {
+                None => None,
+                Some(val) => {
+                    Some(&id_buf[..])
+                },
+            };
+            let dc = match DatConnection::connect(addr, &feed_key, is_live, local_id) {
                 Ok(c) => c,
                 Err(e) => {
                     // TODO: error chain!
