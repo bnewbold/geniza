@@ -3,7 +3,7 @@ use errors::*;
 use std::net::{IpAddr, SocketAddr};
 use make_discovery_key;
 use data_encoding::HEXLOWER;
-use resolve::{self, DnsConfig, DnsResolver, resolve_host};
+use resolve::{DnsConfig, DnsResolver, resolve_host};
 use resolve::record::Srv;
 
 pub fn discover_peers_dns(dat_key: &[u8]) -> Result<Vec<SocketAddr>> {
@@ -16,7 +16,7 @@ pub fn discover_peers_dns(dat_key: &[u8]) -> Result<Vec<SocketAddr>> {
     let dns1: Vec<IpAddr> = resolve_host("discovery1.publicbits.org")?.collect();
     let dns2: Vec<IpAddr> = resolve_host("discovery2.publicbits.org")?.collect();
 
-    let default_config = resolve::default_config()?;
+    let default_config = DnsConfig::load_default()?;
     let config = DnsConfig {
         name_servers: vec![
             SocketAddr::from((dns1[0], 53)),
