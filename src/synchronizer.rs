@@ -15,6 +15,7 @@ use discovery::discover_peers_dns;
 use protobuf::parse_from_bytes;
 use network_msgs::Data;
 use metadata_msgs::Index;
+use std::net::SocketAddr;
 use chan;
 
 pub enum SyncMode {
@@ -41,6 +42,7 @@ pub struct Synchronizer {
     dir: Option<PathBuf>,
     unified_peers_tx: chan::Sender<Result<PeerMsg>>,
     unified_peers_rx: chan::Receiver<Result<PeerMsg>>,
+    potential_peers: Vec<SocketAddr>,
 }
 
 impl Synchronizer {
@@ -72,16 +74,37 @@ impl Synchronizer {
             registers: vec![metadata_status],
             unified_peers_tx,
             unified_peers_rx,
+            potential_peers: vec![],
         };
         Ok(s)
+    }
+
+    pub fn discover(&mut self) -> Result<u64> {
+
+        let meta_key = &self.registers.get(0).unwrap().key.clone();
+        let new_peers = discover_peers_dns(&meta_key[0..32])?;
+        let new_count = new_peers.len() as u64;
+
+        for p in new_peers {
+            self.add_peer(p);
+        }
+        Ok(new_count)
+    }
+
+    pub fn add_peer(&mut self, sa: SocketAddr) {
+
+        if !self.potential_peers.contains(&sa) {
+            self.potential_peers.push(sa);
+        }
     }
 
     pub fn run(&mut self) -> Result<()> {
 
         let meta_key = &self.registers.get(0).unwrap().key.clone();
-        let peers = discover_peers_dns(&meta_key[0..32])?;
         let mut rng = OsRng::new()?;
-        for p in peers {
+        for p in &self.potential_peers {
+            // TODO: somewhere in here validate that we haven't already connected to this peer id
+            // by a different name
             let handle = rng.gen::<u64>();
             let pt = DatPeerThread::connect(p, meta_key.clone(), handle, false, Some(&self.local_id), self.unified_peers_tx.clone())?;
             self.peers.insert(handle, pt);
