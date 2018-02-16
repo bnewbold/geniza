@@ -210,7 +210,7 @@ impl DatConnection {
 
         let tx_nonce = gen_nonce();
         let mut rng = OsRng::new()?;
-        let mut local_id = match local_id {
+        let local_id = match local_id {
             Some(val) => {
                 let mut buf = [0; 32];
                 buf.copy_from_slice(val);

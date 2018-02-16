@@ -1,6 +1,7 @@
 
 next:
 - Synchronizer
+    => connect to specific peer (no discovery)
     => probably an options builder?
     => "wanted" bitmap
     => design statemachine (global and per-peer)

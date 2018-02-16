@@ -33,6 +33,8 @@ fn receiver_loop(mut dc: DatConnection, peer_rx: chan::Sender<Result<(DatNetMess
                 peer_rx.send(Ok((msg, feed_index)));
             },
             Err(e) => {
+                // XXX: check if this was due to socket closing cleanly, in which case don't pass
+                // error along
                 peer_rx.send(Err(e));
                 return
             },
@@ -46,7 +48,7 @@ fn receiver_loop(mut dc: DatConnection, peer_rx: chan::Sender<Result<(DatNetMess
 /// upwards on the unified peer message channel.
 fn worker_thread(mut dc: DatConnection, handle: u64, outbound_chan: chan::Receiver<(DatNetMessage, u8)>, unified_chan: chan::Sender<Result<PeerMsg>>) {
 
-    dc.tcp.set_write_timeout(Some(Duration::new(2, 0)));
+    dc.tcp.set_write_timeout(Some(Duration::new(2, 0))).unwrap();
 
     let rx_dc = dc.clone();
     let (receiver_chan, raw_peer_rx) = chan::async();
@@ -133,9 +135,9 @@ impl DatPeerThread {
         Ok(())
     }
 
-    pub fn add_feed(&mut self, key: &[u8]) -> Result<()> {
+    pub fn add_feed(&mut self, key: &Key) -> Result<()> {
 
-        let key_bytes = key;
+        let key_bytes = &key[0..32];
         let key = Key::from_slice(key_bytes).unwrap();
 
         for k in self.feeds.iter() {
@@ -156,6 +158,10 @@ impl DatPeerThread {
 
         self.feeds.push((index as u8, key.clone()));
         Ok(())
+    }
+
+    pub fn close(&mut self) -> Result<()> {
+        unimplemented!();
     }
 }
 
