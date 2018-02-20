@@ -71,14 +71,30 @@ fn worker_thread(mut dc: DatConnection, handle: u64, outbound_chan: chan::Receiv
                 };
             },
             raw_peer_rx.recv() -> val => {
-                if let Some(Ok((msg, feed_index))) = val {
-                    // do mapping between feed index and feed pubkey here
-                    let pm = PeerMsg {
-                        peer_handle: handle,
-                        feed_index: feed_index,
-                        msg,
-                    };
-                    unified_chan.send(Ok(pm));
+                match val {
+                    Some(Ok((msg, feed_index))) => {
+                        // do mapping between feed index and feed pubkey here
+                        let pm = PeerMsg {
+                            peer_handle: handle,
+                            feed_index: feed_index,
+                            msg,
+                        };
+                        unified_chan.send(Ok(pm));
+                    },
+                    Some(Err(err)) => {
+                        println!("remote socket error: {:?}", err);
+                        // XXX: Need to send something so we know to close
+                        unified_chan.send(Err(err));
+                        dc.close();
+                        return;
+                    },
+                    None => {
+                        println!("remote socket closed");
+                        // XXX: Need to send something so we know to close
+                        //unified_chan.send(Err(err));
+                        dc.close();
+                        return;
+                    }
                 };
             }
         };

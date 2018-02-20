@@ -6,12 +6,14 @@ extern crate env_logger;
 #[macro_use]
 extern crate error_chain;
 extern crate geniza;
+extern crate sodiumoxide;
 
 // TODO: more careful import
 use geniza::*;
 use std::path::{Path, PathBuf};
 use clap::{App, SubCommand};
 use std::env::current_dir;
+use sodiumoxide::crypto::stream::Key;
 
 
 // Helper to find a dat directory somewhere in the parent to the current working directory (or None
@@ -89,12 +91,17 @@ fn run() -> Result<()> {
 
     match matches.subcommand() {
         ("clone", Some(subm)) => {
-            let dat_key = subm.value_of("dat_key").unwrap();
-            let _key_bytes = parse_dat_address(&dat_key)?;
-            unimplemented!();
-            //let dir = Path::new(subm.value_of("dat-dir").unwrap());
-            //let mut metadata = SleepDirRegister::create(&dir, "metadata")?;
-            //node_simple_clone(host_port, &key_bytes, &mut metadata, false)?;
+            let dat_key = subm.value_of("address").unwrap();
+            let key_bytes = parse_dat_address(&dat_key)?;
+            let key = Key::from_slice(&key_bytes).unwrap();
+            let dir = Path::new(subm.value_of("dir").unwrap());
+
+            let mut sync = Synchronizer::new_downloader(key,
+                                                        SyncMode::RxMax,
+                                                        dir)?;
+            let peer_count = sync.discover()?;
+            println!("Found {} potential peers", peer_count);
+            sync.run()?;
         }
         ("init", Some(subm)) => {
             let _dir = Path::new(subm.value_of("dir").unwrap());

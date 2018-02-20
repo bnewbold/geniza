@@ -1,5 +1,5 @@
 
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{TcpStream, ToSocketAddrs, Shutdown};
 use std::time::Duration;
 use std::io::{Read, Write};
 use std::cmp;
@@ -394,5 +394,9 @@ impl DatConnection {
         let reg = parse_from_bytes::<Feed>(&mut buf)?;
         trace!("\twas: {:?}", reg);
         Ok(reg)
+    }
+
+    pub fn close(&mut self) {
+        self.tcp.shutdown(Shutdown::Both);
     }
 }

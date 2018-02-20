@@ -136,14 +136,15 @@ impl Synchronizer {
     }
 
     fn handle_msg(&mut self, pm: &PeerMsg) -> Result<()> {
+        // NB: this is the simplistic model of registers (only works up to 2x per peer)
 
         // mutable ref to PeerThread for this message
         let pt = self.peers.get_mut(&pm.peer_handle).unwrap();
 
         // NB: this is the simplistic model of registers (only works up to 2x per peer?)
         if pm.feed_index as usize >= self.registers.len() {
-            // XXX: invalid feed! drop connection
-            pt.close()?;
+            // Ignore feed channels we haven't registered yet
+            return Ok(());
         }
 
         match &pm.msg {
