@@ -14,6 +14,7 @@ use rand::{OsRng, Rng};
 use errors::*;
 use sleep_file::*;
 use make_discovery_key;
+use network_msgs::Data;
 
 /// Abstract access to Hypercore register
 pub trait HyperRegister {
@@ -32,6 +33,9 @@ pub trait HyperRegister {
     /// Writes an entry to the store. Requires the private key to be present. Returns the entry
     /// index written to.
     fn append(&mut self, data: &[u8]) -> Result<u64>;
+
+    /// Inserts an entry (eg, as received from the network)
+    fn insert(&mut self, msg: &Data) -> Result<()>;
 
     /// Count of data entries for this register. This is the total count (highest entry index plus
     /// one); this particular store might be sparse.
@@ -461,6 +465,68 @@ impl HyperRegister for SleepDirRegister {
 
         // 5. Update bitfile
         Ok(index)
+    }
+
+/*
+ * For a given feed block at a rev, 
+ */
+
+    fn get_data_msg(&self, rev: u64) -> Result<Data> {
+        if not self.has(rev) {
+            bail!("Don't have requested data block: {}", rev);
+        }
+
+        let data = self.get_data_entry(rev)?;
+        let root_sig = self.sign_sleep.get(rev)?;
+
+        let nodes = vec![];
+        for node_index in tree_root_nodes(rev) {
+            let node = Node::new();
+            node.set_index(node_index);
+            node.set_hash();
+            node.set_size();
+            nodes.push(node);
+        }
+
+        let msg = Data::new();
+        msg.set_index(rev);
+        msg.set_value(&data);
+        msg.set_nodes(nodes);
+        msg.set_signature(root_sig);
+        Ok(msg)
+    }
+
+    fn insert(&mut self, msg: &Data) -> Result<()> {
+        // index, value, nodes, signature
+        // "uncles" are included
+        let index = msg.get_index()?;
+        let data = msg.get_value()?;
+        let root_sig = msg.get_signature()?;
+        assert!(index % 2 == 0);
+
+        // 1. Get hash of the data chunk
+        let leaf_hash = HyperRegister::hash_leaf(data);
+
+        // 2. Insert tree chunks
+        for node in msg.get_nodes() {
+            let node_index = node.get_index();
+            let node_hash = node.get_hash();
+            let node_size = node.get_size();
+        }
+
+        // 3. Verify signature
+        let root_hash = HyperRegister::hash_roots(self, index)?;
+        ed25519::verify(&root_hash, &self.secret_key.clone().unwrap(), &root_sig);
+
+        // 4. Insert signature
+        self.sign_sleep.insert(index, &root_sig)?;
+
+        // 5. Insert bytes into data file
+        if let Some(ref mut df) = self.data_file {
+            df.seek(SeekFrom::Start(offset))?;
+            df.write_all(data)?;
+            df.sync_data()?;
+        }
     }
 
     fn len(&self) -> Result<u64> {

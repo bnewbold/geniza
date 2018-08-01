@@ -28,6 +28,7 @@ pub struct PeerMsg {
 /// received messages into a channel back to the worker thread.
 fn receiver_loop(mut dc: DatConnection, peer_rx: chan::Sender<Result<(DatNetMessage, u8)>>) {
     loop {
+        println!("receiver_loop tick");
         match dc.recv_msg() {
             Ok((msg, feed_index)) => {
                 peer_rx.send(Ok((msg, feed_index)));
@@ -57,6 +58,7 @@ fn worker_thread(mut dc: DatConnection, handle: u64, outbound_chan: chan::Receiv
     });
 
     loop {
+        println!("worker_loop tick");
         chan_select!{
             outbound_chan.recv() -> val => {
                 if let Some((msg, feed_index)) = val {

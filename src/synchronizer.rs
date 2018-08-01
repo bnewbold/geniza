@@ -125,6 +125,7 @@ impl Synchronizer {
         let unified_peers_rx = self.unified_peers_rx.clone();
 
         loop {
+            print!(".");
             chan_select! {
                 unified_peers_rx.recv() -> val => {
                     if let Some(Ok(pm)) = val {
@@ -141,7 +142,9 @@ impl Synchronizer {
         // mutable ref to PeerThread for this message
         let pt = self.peers.get_mut(&pm.peer_handle).unwrap();
 
-        // NB: this is the simplistic model of registers (only works up to 2x per peer?)
+        // XXX: debug, not warn
+        warn!("Got a message (feed={}): {:?}", pm.feed_index, pm.msg);
+
         if pm.feed_index as usize >= self.registers.len() {
             // Ignore feed channels we haven't registered yet
             return Ok(());
