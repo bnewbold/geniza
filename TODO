@@ -1,15 +1,16 @@
 
 next:
+- "insert" for hypercore (also sparseness)
+- proper logging
 - Synchronizer
-    => connect to specific peer (no discovery)
-    => probably an options builder?
+    => chan-signal to shutdown
     => "wanted" bitmap
     => design statemachine (global and per-peer)
     => actions for each message type
-    => PeerState helper, with bitfield
     => when a peer is ready, find a mutal chunk option, mark as in progress
     => some logic to do drive stuff (add new registers, etc)
-    => chan-signal to shutdown
+    => probably an options builder?
+    => accepting inbound connections
 - get everything to compile
 - clean up node bitfield implementation
     => use bit_vec (bit-vec = "0.4.4") instead of bit_field (remove)
@@ -20,13 +21,6 @@ next:
 - 'geniza checkout' command
 - 'geniza init', 'geniza commit' commands
 
-threaded sync:
-- rust stdlib async TCP?
-- event loop runner
-- channel polling
-- polling for connections (channels + async TCP)
-- UNIX signal handling
-- later: accepting inbound connections
 
 specific tests:
 - drive children array: deep directory nesting (like 'tree' example)
