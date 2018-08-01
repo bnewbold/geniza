@@ -1,0 +1,6 @@
+
+Should probably stick with simple hyperdrives only in synchronizer
+implementation, instead of biting off arbitary feeds-per-peer.
+
+Was intenting to abandon this project, but still sort of thinking of using
+crossbeam-channels or actix to hack something out.
