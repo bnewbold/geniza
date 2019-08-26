@@ -122,7 +122,7 @@ impl DatPeerThread {
 
             let local_id = match local_id {
                 None => None,
-                Some(val) => {
+                Some(_val) => {
                     Some(&id_buf[..])
                 },
             };

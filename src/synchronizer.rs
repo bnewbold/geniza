@@ -282,7 +282,7 @@ fn init_want_everything(dpt: &mut DatPeerThread, reg_index: u8) -> Result<()> {
 }
 
 /// Tries to connect to a single peer, pull register, and close.
-pub fn node_simple_clone(host_port: &str, key: &[u8], register: &mut HyperRegister, reg_index: u8) -> Result<()> {
+pub fn node_simple_clone(host_port: &str, key: &[u8], register: &mut dyn HyperRegister, reg_index: u8) -> Result<()> {
 
     if register.len()? > 0 {
         bail!("Register already had data in it (expected empty for naive clone)");

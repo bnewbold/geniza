@@ -33,7 +33,7 @@ extern crate bit_vec;
 #[cfg(test)]
 extern crate tempdir;
 
-#[allow(unused_doc_comment)]
+#[allow(unused_doc_comments)]
 mod errors {
 
     // Create the Error, ErrorKind, ResultExt, and Result types

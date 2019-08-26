@@ -53,7 +53,7 @@ pub trait HyperRegister {
     fn get_tree_entry(&mut self, tree_index: u64) -> Result<Vec<u8>>;
 }
 
-impl HyperRegister {
+impl dyn HyperRegister {
     fn hash_leaf(data: &[u8]) -> [u8; 40] {
         let mut buf = [0; 40];
         u64::to_be(data.len() as u64).encode_fixed(&mut buf[32..40]);
@@ -82,7 +82,7 @@ impl HyperRegister {
     }
 
     /// Hashes all the tree root parents for the given entry index (data index, not tree index).
-    pub fn hash_roots(reg: &mut HyperRegister, entry_index: u64) -> Result<Vec<u8>> {
+    pub fn hash_roots(reg: &mut dyn HyperRegister, entry_index: u64) -> Result<Vec<u8>> {
         let mut buf = [0; 32];
         let mut hash = Blake2b::new(32);
         let mut index_buf = [0; 8];
@@ -130,7 +130,7 @@ impl HyperRegister {
 
     /// Finds the offset of the given data chunk in the linear appended data file (not a "checked
     /// out" individual file)
-    pub fn get_data_offset(reg: &mut HyperRegister, entry_index: u64) -> Result<u64> {
+    pub fn get_data_offset(reg: &mut dyn HyperRegister, entry_index: u64) -> Result<u64> {
         // TODO: this is a naive (linear) implementation
         // log(N) would go up previous parent nodes (eg, use root_nodes())
         let mut sum: u64 = 0;

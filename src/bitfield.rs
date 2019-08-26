@@ -10,11 +10,11 @@ pub struct Bitfield {
 
 impl Bitfield {
 
-    pub fn from_have_msg(msg: &Have) -> Bitfield {
+    pub fn from_have_msg(_msg: &Have) -> Bitfield {
         unimplemented!()
     }
 
-    pub fn get(&self, index: u64) -> Result<bool> {
+    pub fn get(&self, _index: u64) -> Result<bool> {
         unimplemented!()
     }
 }

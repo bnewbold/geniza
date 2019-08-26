@@ -43,7 +43,7 @@ fn msg_code(msg: &DatNetMessage) -> u8 {
     }
 }
 
-fn msg_sugar(msg: &DatNetMessage) -> &Message {
+fn msg_sugar(msg: &DatNetMessage) -> &dyn Message {
     match msg {
         &DatNetMessage::Feed(ref m) => m,
         &DatNetMessage::Handshake(ref m) => m,
@@ -283,7 +283,7 @@ impl DatConnection {
     /// For hyperdrive connections, `feed_index` is equivalent to a `is_content` boolean flag.
     pub fn send_msg(&mut self, dnm: &DatNetMessage, feed_index: u8) -> Result<()> {
         let header_int: u8 = (feed_index as u8) << 4 | (msg_code(dnm) & 0x0F);
-        let msg: &Message = msg_sugar(dnm);
+        let msg: &dyn Message = msg_sugar(dnm);
         let total_message_size = (msg.compute_size() as usize) + 1;
 
         trace!(
